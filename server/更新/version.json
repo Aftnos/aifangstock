@@ -1,0 +1,15 @@
+{
+    "latest": "2.1.0",
+    "versions": [
+        {
+            "version": "2.1.0",
+            "min_required": "0.0.0",
+            "description": "全新版本！密钥认证+远程自动升级！",
+            "changelog": "2.1.0 - 全新版本！密钥认证+远程自动升级！\r\n2.2.0 - 正在开发",
+            "download_url": "https:\/\/updata.aifang.pro\/\/updates\/package-2.1.0.zip",
+            "file_path": "\/updates\/package-2.1.0.zip",
+            "release_date": "2025-05-17",
+            "size": 29098799
+        }
+    ]
+}

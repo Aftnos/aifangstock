@@ -1,13 +1,14 @@
 <?php
 session_start();
 
-// 简单的登录验证
-$admin_username = 'admin';
-$admin_password = 'admin123'; // 实际使用时应更改为强密码并使用哈希存储
+$admin_username = '艾拉与方块';
+$admin_password_hash = '$2y$10$eyPWnKKkpHN5ub98JUcMWuujGcS2wIknAlkKXpXZ4Tj4OVXmbTHHm';
 
 // 处理登录请求
 if (isset($_POST['login'])) {
-    if ($_POST['username'] === $admin_username && $_POST['password'] === $admin_password) {
+    $inputUser = $_POST['username'] ?? '';
+    $inputPass = $_POST['password'] ?? '';
+    if ($inputUser === $admin_username && password_verify($inputPass, $admin_password_hash)) {
         $_SESSION['admin_logged_in'] = true;
     } else {
         $login_error = '用户名或密码错误';
