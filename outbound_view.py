@@ -34,8 +34,8 @@ class OutboundView(ttk.Frame):
         tree_container = ttk.Frame(self)
         tree_container.pack(fill=tk.BOTH, expand=True, padx=10, pady=5)
 
-        # 新增“商品数量”和“颜色/配置”列，保留“单号”、“货商姓名”、“入库时间”
-        cols = ("选中", "单号", "商品名称", "商品数量", "颜色/配置", "货商姓名", "入库时间")
+        # 新增"剩余数量"、"剩余价值"列，显示可出库的信息
+        cols = ("选中", "单号", "商品名称", "商品数量", "剩余数量", "剩余价值", "颜色/配置", "货商姓名", "入库时间")
         self.tree = ttk.Treeview(
             tree_container,
             columns=cols,
@@ -69,12 +69,13 @@ class OutboundView(ttk.Frame):
 
         ttk.Separator(self, orient="horizontal").pack(fill=tk.X, pady=5)
 
-        # 出库录入：只保留“出库档口”和“快递单号”
+        # 出库录入：添加出库数量输入
         frm = ttk.Frame(self)
         frm.pack(pady=5)
         fields = [
             ("出库档口", "出库档口", "combobox"),
             ("快递单号", "快递单号", "entry"),
+            ("出库数量", "出库数量", "entry"),
         ]
         self.entries = {}
         for i, (lt, fn, wt) in enumerate(fields):
@@ -93,6 +94,10 @@ class OutboundView(ttk.Frame):
                 e = ttk.Entry(frm, width=30)
                 e.grid(row=i, column=1, padx=5, pady=3, sticky="w")
                 self.entries[fn] = e
+                
+        # 添加提示信息
+        tip_label = ttk.Label(frm, text="提示：出库数量为空时将全部出库", foreground="gray")
+        tip_label.grid(row=len(fields), column=0, columnspan=2, pady=5)
 
         ttk.Button(self, text="提交出库", command=self.submit).pack(pady=10)
 
@@ -147,22 +152,45 @@ class OutboundView(ttk.Frame):
             messagebox.showwarning("提示", "没有有效记录可出库！")
             return
 
-        data = {
-            '出库档口': self.entries["出库档口"].get(),
-            '快递单号': self.entries["快递单号"].get()
-        }
+        counter = self.entries["出库档口"].get()
+        tracking_number = self.entries["快递单号"].get()
+        outbound_quantity_str = self.entries["出库数量"].get().strip()
+        
+        if not counter:
+            messagebox.showwarning("提示", "请选择出库档口！")
+            return
+        if not tracking_number:
+            messagebox.showwarning("提示", "请输入快递单号！")
+            return
 
-        # 2) 直接调用 model.update_record，避免中途刷新
+        # 2) 处理出库
         cnt = 0
         for order in orders:
-            updated = {
-                '出库状态': '卖出',
-                '出库档口': data['出库档口'],
-                '快递单号': data['快递单号'],
-                '利润': ''
-            }
-            if self.controller.model.update_record(order, updated):
-                cnt += 1
+            if outbound_quantity_str:  # 分数量出库
+                try:
+                    outbound_quantity = int(outbound_quantity_str)
+                    if outbound_quantity <= 0:
+                        messagebox.showwarning("提示", "出库数量必须大于0！")
+                        return
+                    if self.controller.handle_partial_outbound(order, outbound_quantity, tracking_number, counter):
+                        cnt += 1
+                    else:
+                        messagebox.showwarning("提示", f"单号 {order} 出库失败，可能是数量不足或数据错误！")
+                        return
+                except ValueError:
+                    messagebox.showwarning("提示", "出库数量必须是有效的整数！")
+                    return
+            else:  # 全部出库（原有逻辑）
+                updated = {
+                    '出库状态': '全部出库',
+                    '出库档口': counter,
+                    '快递单号': tracking_number,
+                    '剩余数量': '0',
+                    '剩余价值': '0.00',
+                    '利润': ''
+                }
+                if self.controller.model.update_record(order, updated):
+                    cnt += 1
 
         messagebox.showinfo("提示", f"共处理出库 {cnt} 条记录")
 
@@ -170,6 +198,8 @@ class OutboundView(ttk.Frame):
         for w in self.entries.values():
             if isinstance(w, ttk.Entry):
                 w.delete(0, tk.END)
+            elif isinstance(w, ttk.Combobox):
+                w.set('')
         self.checked.clear()
         self._update_selected_count()
 
@@ -180,7 +210,9 @@ class OutboundView(ttk.Frame):
         # 统计相同"入库快递单号"条数用于高亮
         counts = {}
         for r in recs:
-            if r['出库状态'] == "未出库":
+            # 只显示有剩余数量的记录
+            remaining_qty = int(r.get('剩余数量', '') or r.get('商品数量', '0'))
+            if remaining_qty > 0:
                 key = r.get("入库快递单号", "")
                 counts[key] = counts.get(key, 0) + 1
 
@@ -191,18 +223,26 @@ class OutboundView(ttk.Frame):
         self.all_records = []
         
         for r in recs:
-            if r['出库状态'] != "未出库":
+            # 只显示有剩余数量的记录
+            remaining_qty = int(r.get('剩余数量', '') or r.get('商品数量', '0'))
+            if remaining_qty <= 0:
                 continue
                 
             # 保存记录用于搜索
             self.all_records.append(r)
             
             tag = ("selected",) if counts.get(r.get("入库快递单号", ""), 0) > 1 else ()
+            # 计算剩余数量和剩余价值
+            remaining_qty = r.get('剩余数量', '') or r.get('商品数量', '')
+            remaining_value = r.get('剩余价值', '') or r.get('结算价', '')
+            
             vals = (
                 "☐",
                 r.get("单号", ""),
                 r.get("商品名称", ""),
                 r.get("商品数量", ""),
+                remaining_qty,
+                remaining_value,
                 r.get("颜色/配置", ""),
                 r.get("货商姓名", ""),
                 r.get("入库时间", "")
@@ -227,11 +267,15 @@ class OutboundView(ttk.Frame):
             self.checked.clear()
             
             for r in self.all_records:
+                remaining_qty = r.get('剩余数量', '') or r.get('商品数量', '')
+                remaining_value = r.get('剩余价值', '') or r.get('结算价', '')
                 vals = (
                     "☐",
                     r.get("单号", ""),
                     r.get("商品名称", ""),
                     r.get("商品数量", ""),
+                    remaining_qty,
+                    remaining_value,
                     r.get("颜色/配置", ""),
                     r.get("货商姓名", ""),
                     r.get("入库时间", "")
@@ -265,11 +309,15 @@ class OutboundView(ttk.Frame):
                             break
             
             if found:
+                remaining_qty = r.get('剩余数量', '') or r.get('商品数量', '')
+                remaining_value = r.get('剩余价值', '') or r.get('结算价', '')
                 vals = (
                     "☐",
                     r.get("单号", ""),
                     r.get("商品名称", ""),
                     r.get("商品数量", ""),
+                    remaining_qty,
+                    remaining_value,
                     r.get("颜色/配置", ""),
                     r.get("货商姓名", ""),
                     r.get("入库时间", "")

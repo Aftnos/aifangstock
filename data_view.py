@@ -42,9 +42,11 @@ class DataView(ttk.Frame):
         # 结果表格
         self.tree = ttk.Treeview(self, show="headings")
         self.tree.grid(row=1, column=0, columnspan=5, sticky="nsew")
-        # 仅“出库状态”列上色
+        # 仅"出库状态"列上色
         self.tree.tag_configure('outbound', foreground='green')
         self.tree.tag_configure('inbound',  foreground='blue')
+        # 绑定双击事件
+        self.tree.bind("<Double-1>", self.on_tree_double_click)
 
         vsb = ttk.Scrollbar(self, orient="vertical", command=self.tree.yview)
         vsb.grid(row=1, column=5, sticky="ns")
@@ -160,9 +162,15 @@ class DataView(ttk.Frame):
             self.tree.heading(c, text=c, command=lambda c=c: self.sort_by(c))
             self.tree.column(c, width=100, anchor="center")
 
-        # 插入数据并上色“出库状态”
+        # 插入数据并上色"出库状态"
         for d in self.full:
-            vals = [d.get(c,"") for c in self.columns]
+            vals = []
+            for c in self.columns:
+                if c == "出库记录":
+                    # 出库记录列显示"点击查询详细"
+                    vals.append("双击查询详细")
+                else:
+                    vals.append(d.get(c,""))
             status = d.get("出库状态","")
             tag = "outbound" if status == "卖出" else "inbound"
             self.tree.insert("", tk.END, values=vals, tags=(tag,))
@@ -192,7 +200,13 @@ class DataView(ttk.Frame):
         # 重绘行
         self.tree.delete(*self.tree.get_children())
         for d in self.full:
-            vals = [d.get(c,"") for c in self.columns]
+            vals = []
+            for c in self.columns:
+                if c == "出库记录":
+                    # 出库记录列显示"点击查询详细"
+                    vals.append("点击查询详细")
+                else:
+                    vals.append(d.get(c,""))
             status = d.get("出库状态","")
             tag = "outbound" if status == "卖出" else "inbound"
             self.tree.insert("", tk.END, values=vals, tags=(tag,))
@@ -213,7 +227,13 @@ class DataView(ttk.Frame):
         self.full = filtered
         self.tree.delete(*self.tree.get_children())
         for d in self.full:
-            vals = [d.get(c,"") for c in self.columns]
+            vals = []
+            for c in self.columns:
+                if c == "出库记录":
+                    # 出库记录列显示"点击查询详细"
+                    vals.append("点击查询详细")
+                else:
+                    vals.append(d.get(c,""))
             status = d.get("出库状态","")
             tag = "outbound" if status == "卖出" else "inbound"
             self.tree.insert("", tk.END, values=vals, tags=(tag,))
@@ -233,7 +253,13 @@ class DataView(ttk.Frame):
         self.sort_states[col] = not asc
         self.tree.delete(*self.tree.get_children())
         for d in self.full:
-            vals = [d.get(c,"") for c in self.columns]
+            vals = []
+            for c in self.columns:
+                if c == "出库记录":
+                    # 出库记录列显示"点击查询详细"
+                    vals.append("点击查询详细")
+                else:
+                    vals.append(d.get(c,""))
             status = d.get("出库状态","")
             tag = "outbound" if status == "卖出" else "inbound"
             self.tree.insert("", tk.END, values=vals, tags=(tag,))
@@ -288,3 +314,103 @@ class DataView(ttk.Frame):
         self.lbl_total_market    .config(text=f"行情价总和: {total_market:.2f}")
         self.lbl_total_rows      .config(text=f"总条数: {len(self.full)}")
         self.lbl_total_qty       .config(text=f"商品数量总和: {total_qty:.2f}")
+
+    def on_tree_double_click(self, event):
+        """处理表格双击事件"""
+        item = self.tree.selection()[0] if self.tree.selection() else None
+        if not item:
+            return
+        
+        # 获取点击的列
+        region = self.tree.identify_region(event.x, event.y)
+        if region != "cell":
+            return
+        
+        column = self.tree.identify_column(event.x)
+        if not column:
+            return
+        
+        # 将列号转换为列名
+        col_index = int(column.replace('#', '')) - 1
+        if col_index < 0 or col_index >= len(self.columns):
+            return
+        
+        col_name = self.columns[col_index]
+        
+        # 只有点击出库记录列才弹出详细窗口
+        if col_name == "出库记录":
+            # 获取当前行的数据
+            row_index = self.tree.index(item)
+            if row_index < len(self.full):
+                record_data = self.full[row_index]
+                self.show_outbound_details(record_data)
+    
+    def show_outbound_details(self, record_data):
+        """显示出库记录详细窗口"""
+        # 创建新窗口
+        detail_window = tk.Toplevel(self)
+        detail_window.title("出库记录详细")
+        detail_window.geometry("600x400")
+        detail_window.resizable(True, True)
+        
+        # 商品信息标题
+        info_frame = ttk.Frame(detail_window)
+        info_frame.pack(fill="x", padx=10, pady=5)
+        
+        product_info = f"商品: {record_data.get('商品名称', '')} | 订单号: {record_data.get('订单号', '')} | 颜色配置: {record_data.get('颜色配置', '')}"
+        ttk.Label(info_frame, text=product_info, font=("Arial", 10, "bold")).pack()
+        
+        # 出库记录表格
+        tree_frame = ttk.Frame(detail_window)
+        tree_frame.pack(fill="both", expand=True, padx=10, pady=5)
+        
+        # 创建表格
+        detail_tree = ttk.Treeview(tree_frame, columns=("时间", "档口", "快递单号", "出库数量", "单价"), show="headings")
+        detail_tree.pack(fill="both", expand=True)
+        
+        # 设置列标题和宽度
+        detail_tree.heading("时间", text="出库时间")
+        detail_tree.heading("档口", text="出库档口")
+        detail_tree.heading("快递单号", text="快递单号")
+        detail_tree.heading("出库数量", text="出库数量")
+        detail_tree.heading("单价", text="单价")
+        
+        detail_tree.column("时间", width=150, anchor="center")
+        detail_tree.column("档口", width=100, anchor="center")
+        detail_tree.column("快递单号", width=120, anchor="center")
+        detail_tree.column("出库数量", width=80, anchor="center")
+        detail_tree.column("单价", width=80, anchor="center")
+        
+        # 添加滚动条
+        detail_scrollbar = ttk.Scrollbar(tree_frame, orient="vertical", command=detail_tree.yview)
+        detail_scrollbar.pack(side="right", fill="y")
+        detail_tree.configure(yscrollcommand=detail_scrollbar.set)
+        
+        # 解析出库记录数据
+        outbound_records_str = record_data.get('出库记录', '')
+        if outbound_records_str:
+            try:
+                # 出库记录格式: "时间1|档口1|快递单号1|数量1|单价1;时间2|档口2|快递单号2|数量2|单价2"
+                records = outbound_records_str.split(';')
+                for record in records:
+                    if record.strip():
+                        parts = record.split('|')
+                        if len(parts) >= 4:
+                            time_str = parts[0] if len(parts) > 0 else ""
+                            counter = parts[1] if len(parts) > 1 else ""
+                            tracking = parts[2] if len(parts) > 2 else ""
+                            quantity = parts[3] if len(parts) > 3 else ""
+                            unit_price = parts[4] if len(parts) > 4 else ""
+                            detail_tree.insert("", tk.END, values=(time_str, counter, tracking, quantity, unit_price))
+            except Exception as e:
+                # 如果解析失败，显示原始数据
+                detail_tree.insert("", tk.END, values=("解析错误", "", "", "", ""))
+                detail_tree.insert("", tk.END, values=(outbound_records_str, "", "", "", ""))
+        else:
+            # 如果没有出库记录，显示提示
+            detail_tree.insert("", tk.END, values=("暂无出库记录", "", "", "", ""))
+        
+        # 关闭按钮
+        button_frame = ttk.Frame(detail_window)
+        button_frame.pack(fill="x", padx=10, pady=5)
+        ttk.Button(button_frame, text="关闭", command=detail_window.destroy).pack(side="right")

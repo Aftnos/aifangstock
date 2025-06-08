@@ -17,8 +17,8 @@ class ModifyView(ttk.Frame):
         self.columns = [
             "入库快递单号","货商姓名","入库时间","数字条码","商品名称",
             "商品数量","商品数量单位","颜色/配置","货源","买价",
-            "佣金","结算价","行情价格","利润","结算状态",
-            "出库状态","出库档口","快递单号","快递价格","备注","单号"
+            "佣金","结算价","单价","剩余数量","剩余价值","行情价格","利润","结算状态",
+            "出库状态","出库档口","快递单号","快递价格","备注","单号","出库记录"
         ]
         # 排序状态
         self.sort_states = {c: True for c in self.columns}
@@ -243,7 +243,9 @@ class ModifyView(ttk.Frame):
             p.config(state="normal"); p.delete(0,tk.END); p.insert(0,f"{profit:.2f}"); p.config(state="readonly")
         except:
             pass
-        self.selected_order = vals[-1]
+        # 获取单号字段的值（单号在columns中的索引位置）
+        order_index = self.columns.index("单号")
+        self.selected_order = vals[order_index]
 
     def save_changes(self):
         if not self.selected_order:
@@ -258,12 +260,13 @@ class ModifyView(ttk.Frame):
                 updated[field] = self.get_datetime_str(de, cb_h, cb_m, cb_s)
             else:
                 updated[field] = w.get()
-        if self.controller.handle_modify(self.selected_order, updated):
-            messagebox.showinfo("提示","修改成功")
+        success, message = self.controller.handle_modify(self.selected_order, updated)
+        if success:
+            messagebox.showinfo("提示", message)
             # 重新加载数据并保留筛选、排序
             self.refresh_list()
         else:
-            messagebox.showerror("错误","修改失败")
+            messagebox.showerror("错误", f"修改失败: {message}")
 
     def delete_record(self):
         if not self.selected_order:

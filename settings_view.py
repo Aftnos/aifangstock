@@ -47,6 +47,7 @@ class SettingsView(ttk.Frame):
         if name:
             self.settings_model.add_supplier(name)
             self._refresh_suppliers()
+            self.controller.refresh_supplier_list()
 
     def _on_edit_supplier(self):
         sel = self.sup_tree.selection()
@@ -58,6 +59,7 @@ class SettingsView(ttk.Frame):
         if new:
             self.settings_model.update_supplier(old, new)
             self._refresh_suppliers()
+            self.controller.refresh_supplier_list()
 
     def _on_delete_supplier(self):
         sel = self.sup_tree.selection()
@@ -68,6 +70,7 @@ class SettingsView(ttk.Frame):
         if messagebox.askyesno("确认", f"删除供应商 {name}？"):
             self.settings_model.delete_supplier(name)
             self._refresh_suppliers()
+            self.controller.refresh_supplier_list()
 
     # --- 出库档口页 ---
     def _create_counters_page(self):

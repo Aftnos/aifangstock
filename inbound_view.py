@@ -207,15 +207,18 @@ class InboundView(ttk.Frame):
             '入库快递单号': self.ent_in_courier.get(),
             '颜色/配置': self.ent_color.get()
         }
-        self.controller.handle_inbound_registration(data)
-        messagebox.showinfo("提示", "入库登记成功！")
-        for w in [
-            self.ent_in_courier, self.ent_bar, self.ent_name, self.ent_buy,
-            self.ent_comm, self.ent_qty, self.ent_unit, self.ent_color
-        ]:
-            w.delete(0, tk.END)
-        self.update_preview()
-        self.refresh_list()
+        success = self.controller.handle_inbound_registration(data)
+        if success:
+            messagebox.showinfo("提示", "入库登记成功！")
+            for w in [
+                self.ent_in_courier, self.ent_bar, self.ent_name, self.ent_buy,
+                self.ent_comm, self.ent_qty, self.ent_unit, self.ent_color
+            ]:
+                w.delete(0, tk.END)
+            self.update_preview()
+            self.refresh_list()
+        else:
+            messagebox.showerror("错误", "入库登记失败！")
 
     def refresh_list(self):
         recs = self.controller.model.get_all_records()

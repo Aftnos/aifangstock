@@ -12,21 +12,26 @@ class InventoryController:
     def generate_order_number(self) -> str:
         return str(int(time.time() * 1000))
 
-    def handle_inbound_registration(self, info: dict):
+    def handle_inbound_registration(self, info: dict) -> bool:
         # 自动计算结算价 = 买价 + 佣金
         try:
             buy = float(info.get('买价', '0'))
             comm = float(info.get('佣金', '0'))
             settle = buy + comm
+            quantity = int(info.get('商品数量', '1'))
+            unit_price = settle / max(quantity, 1)
         except:
             settle = 0.0
+            quantity = 1
+            unit_price = 0.0
+        
         record = {
             '单号': self.generate_order_number(),
             '货商姓名': info.get('货商姓名', ''),
             '入库时间': info.get('入库时间', ''),
             '数字条码': info.get('数字条码', ''),
             '商品名称': info.get('商品名称', ''),
-            '商品数量': info.get('商品数量', '1'),
+            '商品数量': str(quantity),
             '商品数量单位': info.get('商品数量单位', ''),
             '入库快递单号': info.get('入库快递单号', ''),
             '货源': '',
@@ -34,6 +39,9 @@ class InventoryController:
             '买价': info.get('买价', ''),
             '佣金': info.get('佣金', ''),
             '结算价': f"{settle:.2f}",
+            '单价': f"{unit_price:.2f}",
+            '剩余数量': str(quantity),
+            '剩余价值': f"{settle:.2f}",
             '行情价格': '',
             '结算状态': info.get('结算状态', ''),
             '出库状态': '未出库',
@@ -41,10 +49,13 @@ class InventoryController:
             '快递单号': '',
             '快递价格': '',
             '利润': '',
-            '备注': ''
+            '备注': '',
+            '出库记录': ''
         }
-        self.model.add_record(record)
-        self.refresh_inventory_list()
+        success = self.model.add_record(record)
+        if success:
+            self.refresh_inventory_list()
+        return success
 
     def handle_outbound_registration(self, order: str, info: dict) -> bool:
         updated = {
@@ -58,19 +69,65 @@ class InventoryController:
         if success:
             self.refresh_inventory_list()
         return success
-
-    def handle_modify(self, order: str, updated_fields: dict) -> bool:
-        # 修改时重新计算结算价
-        try:
-            buy = float(updated_fields.get('买价', '0'))
-            comm = float(updated_fields.get('佣金', '0'))
-            updated_fields['结算价'] = f"{buy + comm:.2f}"
-        except:
-            updated_fields['结算价'] = ''
-        success = self.model.update_record(order, updated_fields)
+    
+    def handle_partial_outbound(self, order: str, quantity: int, tracking_number: str, counter: str) -> bool:
+        """
+        处理分数量出库
+        """
+        success = self.model.partial_outbound(order, quantity, tracking_number, counter)
         if success:
             self.refresh_inventory_list()
         return success
+
+    def handle_modify(self, order: str, updated_fields: dict) -> tuple[bool, str]:
+        # 获取原记录
+        records = self.model.get_all_records()
+        original_record = None
+        for r in records:
+            if r['单号'] == order:
+                original_record = r
+                break
+        
+        if not original_record:
+            return False, "原始记录未找到"
+        
+        # 修改时重新计算结算价、单价、剩余价值
+        try:
+            # 获取买价和佣金（优先使用更新字段，否则使用原值）
+            buy = float(updated_fields.get('买价', original_record.get('买价', '0')))
+            comm = float(updated_fields.get('佣金', original_record.get('佣金', '0')))
+            quantity = int(updated_fields.get('商品数量', original_record.get('商品数量', '1')))
+            
+            # 计算结算价和单价
+            settlement_price = buy + comm
+            unit_price = settlement_price / max(quantity, 1)
+            
+            updated_fields['结算价'] = f"{settlement_price:.2f}"
+            updated_fields['单价'] = f"{unit_price:.2f}"
+            
+            # 如果修改了商品数量，需要重新计算剩余数量和剩余价值
+            if '商品数量' in updated_fields:
+                # 如果剩余数量为空，设置为新的商品数量
+                remaining_qty = int(original_record.get('剩余数量', '') or original_record.get('商品数量', '0'))
+                if not original_record.get('剩余数量', ''):
+                    remaining_qty = quantity
+                updated_fields['剩余数量'] = str(remaining_qty)
+                updated_fields['剩余价值'] = f"{remaining_qty * unit_price:.2f}"
+            else:
+                # 如果没有修改商品数量，只更新剩余价值
+                remaining_qty = int(original_record.get('剩余数量', '') or original_record.get('商品数量', '0'))
+                updated_fields['剩余价值'] = f"{remaining_qty * unit_price:.2f}"
+                
+        except (ValueError, TypeError) as e:
+            updated_fields['结算价'] = ''
+            updated_fields['单价'] = ''
+            return False, f"数据格式错误: {e}"
+            
+        success = self.model.update_record(order, updated_fields)
+        if success:
+            self.refresh_inventory_list()
+            return True, "修改成功"
+        return False, "数据库更新失败"
 
     def handle_delete(self, order: str) -> bool:
         success = self.model.delete_record(order)
@@ -122,8 +179,8 @@ class InventoryController:
         cols = (
             "入库快递单号","货商姓名","入库时间","数字条码","商品名称",
             "商品数量","商品数量单位","货源","颜色/配置",
-            "买价","佣金","结算价","行情价格","利润",
-            "结算状态","出库状态","出库档口","快递单号","快递价格","备注","单号"
+            "买价","佣金","结算价","单价","剩余数量","剩余价值","行情价格","利润",
+            "结算状态","出库状态","出库档口","快递单号","快递价格","备注","单号","出库记录"
         )
         data = [tuple(r.get(c, "") for c in cols) for r in recs]
         self.view.data_page.display_results(cols, data)
@@ -161,8 +218,8 @@ class InventoryController:
         cols = (
             "入库快递单号","货商姓名","入库时间","数字条码","商品名称",
             "商品数量","商品数量单位","货源","颜色/配置",
-            "买价","佣金","结算价","行情价格","利润",
-            "结算状态","出库状态","出库档口","快递单号","快递价格","备注","单号"
+            "买价","佣金","结算价","单价","剩余数量","剩余价值","行情价格","利润",
+            "结算状态","出库状态","出库档口","快递单号","快递价格","备注","单号","出库记录"
         )
         data = [tuple(r.get(c,"") for c in cols) for r in recs]
         self.view.data_page.display_results(cols, data)
