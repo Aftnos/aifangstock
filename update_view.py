@@ -18,7 +18,7 @@ class UpdateView(ttk.Frame):
         super().__init__(parent, padding=10)
         self.controller = controller
         self.update_server_url = "https://updata.aifang.pro/index.php"
-        self.current_version = "2.1.0"  # 当前版本号
+        self.current_version = "2.3.6"  # 当前版本号
         self.checking = False
         self.downloading = False
         self.create_widgets()

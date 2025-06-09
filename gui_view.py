@@ -22,13 +22,19 @@ class InventoryMainView:
         # 创建主窗口
         self.root = tk.Tk()
         # 设置窗口标题
-        self.root.title("艾方存货管家 2.3.1")
+        self.root.title("艾方存货管家 2.3.6")
 
         try:
-            icon = tk.PhotoImage(data=ICON_BASE64)
-            self.root.iconphoto(False, icon)
-            # 保存引用，避免被垃圾回收
-            self._icon = icon
+            # 设置任务栏图标（使用.ico文件）
+            icon_path = os.path.join(os.path.dirname(__file__), "logo.ico")
+            if os.path.exists(icon_path):
+                self.root.iconbitmap(icon_path)
+            else:
+                # 如果.ico文件不存在，使用Base64图标作为备选
+                icon = tk.PhotoImage(data=ICON_BASE64)
+                self.root.iconphoto(False, icon)
+                # 保存引用，避免被垃圾回收
+                self._icon = icon
         except Exception as e:
             print("无法设置图标:", e)
 
