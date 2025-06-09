@@ -27,9 +27,14 @@ class InboundView(ttk.Frame):
         # 左侧：库存列表
         left = ttk.Frame(self)
         left.pack(side=tk.LEFT, fill=tk.BOTH, expand=True, padx=5, pady=5)
-        cols = ("入库快递单号", "货商姓名", "商品名称", "商品数量", "入库时间", "颜色/配置")
-        self.tree = ttk.Treeview(left, columns=cols, show="headings")
-        for c in cols:
+        # 从设置中获取要显示的列
+        display_cols = self.controller.settings_model.get_display_columns('inbound')
+        if not display_cols:
+            # 如果没有配置，使用默认列
+            display_cols = ["入库快递单号", "货商姓名", "商品名称", "商品数量", "入库时间", "颜色/配置"]
+        
+        self.tree = ttk.Treeview(left, columns=display_cols, show="headings")
+        for c in display_cols:
             self.tree.heading(c, text=c)
             self.tree.column(c, width=100, anchor="center")
         # 重复单号高亮
@@ -222,6 +227,12 @@ class InboundView(ttk.Frame):
 
     def refresh_list(self):
         recs = self.controller.model.get_all_records()
+        
+        # 获取当前显示的列
+        display_cols = self.controller.settings_model.get_display_columns('inbound')
+        if not display_cols:
+            display_cols = ["入库快递单号", "货商姓名", "商品名称", "商品数量", "入库时间", "颜色/配置"]
+        
         # 统计重复快递单号
         counts = {}
         for r in recs:
@@ -230,16 +241,13 @@ class InboundView(ttk.Frame):
 
         self.tree.delete(*self.tree.get_children())
         for r in reversed(recs):
+            # 根据配置的列构建显示数据
+            vals = []
+            for col in display_cols:
+                vals.append(r.get(col, ""))
+            
             tag = ('duplicate',) if counts.get(r.get("入库快递单号",""), 0) > 1 else ()
-            vals = (
-                r.get("入库快递单号",""),
-                r.get("货商姓名",""),
-                r.get("商品名称",""),
-                r.get("商品数量",""),
-                r.get("入库时间",""),
-                r.get("颜色/配置","")
-            )
-            self.tree.insert("", tk.END, values=vals, tags=tag)
+            self.tree.insert("", tk.END, values=tuple(vals), tags=tag)
 
     def update_supplier_list(self, suppliers):
         self.cb_sup['values'] = suppliers
@@ -273,3 +281,19 @@ class InboundView(ttk.Frame):
         self.cb_sup.set(self.lst_sup_search.get(idx))
         self.lst_sup_search.grid_remove()
         self.update_preview()
+    
+    def refresh_columns(self):
+        """刷新表格列显示配置"""
+        # 获取新的列配置
+        display_cols = self.controller.settings_model.get_display_columns('inbound')
+        if not display_cols:
+            display_cols = ["入库快递单号", "货商姓名", "商品名称", "商品数量", "入库时间", "颜色/配置"]
+        
+        # 重新配置表格列
+        self.tree.configure(columns=display_cols)
+        for c in display_cols:
+            self.tree.heading(c, text=c)
+            self.tree.column(c, width=100, anchor="center")
+        
+        # 刷新数据
+        self.refresh_list()

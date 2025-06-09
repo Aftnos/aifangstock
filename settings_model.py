@@ -28,11 +28,16 @@ class SettingsModel:
                 self.settings = json.load(f)
         else:
             self.settings = {
-                'suppliers': [],
-                'counters': [],
-                'tables': ['default'],
-                'active_table': 'default'
+            'suppliers': [],
+            'counters': [],
+            'tables': ['default'],
+            'active_table': 'default',
+            'column_display': {
+                'inbound': ['入库快递单号', '货商姓名', '商品名称', '商品数量', '入库时间', '颜色/配置'],
+                'outbound': ['选中', '单号', '商品名称', '商品数量', '剩余数量', '剩余价值', '颜色/配置', '货商姓名', '入库时间'],
+                'data_query': ['单号', '货商姓名', '入库时间', '商品名称', '商品数量', '买价', '佣金', '结算价', '出库状态']
             }
+        }
             self._save_settings()
 
     def _save_settings(self):
@@ -167,3 +172,25 @@ class SettingsModel:
         if barcode in self.barcode_mappings:
             del self.barcode_mappings[barcode]
             self._save_barcode_mappings()
+
+    # -------- 表格列显示配置管理 --------
+    def get_available_columns(self, page_type: str) -> list:
+        """获取指定页面类型的所有可用列"""
+        if page_type == 'inbound':
+            return ['入库快递单号', '货商姓名', '商品名称', '商品数量', '入库时间', '颜色/配置', '买价', '佣金', '结算价', '数字条码']
+        elif page_type == 'outbound':
+            return ['选中', '单号', '商品名称', '商品数量', '剩余数量', '剩余价值', '颜色/配置', '货商姓名', '入库时间', '买价', '佣金', '结算价']
+        elif page_type == 'data_query':
+            return ['单号', '货商姓名', '入库时间', '数字条码', '商品名称', '商品数量', '商品数量单位', '入库快递单号', '货源', '颜色/配置', '买价', '佣金', '结算价', '单价', '剩余数量', '剩余价值', '行情价格', '结算状态', '出库状态', '出库档口', '快递单号', '快递价格', '利润', '备注', '出库记录']
+        return []
+
+    def get_display_columns(self, page_type: str) -> list:
+        """获取指定页面类型当前显示的列"""
+        return self.settings.get('column_display', {}).get(page_type, [])
+
+    def set_display_columns(self, page_type: str, columns: list):
+        """设置指定页面类型显示的列"""
+        if 'column_display' not in self.settings:
+            self.settings['column_display'] = {}
+        self.settings['column_display'][page_type] = columns
+        self._save_settings()

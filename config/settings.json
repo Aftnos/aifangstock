@@ -18,5 +18,26 @@
   "tables": [
     "default"
   ],
-  "active_table": "default"
+  "active_table": "default",
+  "column_display": {
+    "data_query": [
+      "货商姓名",
+      "单号",
+      "入库时间",
+      "商品名称",
+      "商品数量",
+      "买价",
+      "佣金",
+      "结算价",
+      "出库状态"
+    ],
+    "inbound": [
+      "入库快递单号",
+      "货商姓名",
+      "商品名称",
+      "商品数量",
+      "入库时间",
+      "颜色/配置"
+    ]
+  }
 }

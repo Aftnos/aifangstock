@@ -233,3 +233,21 @@ class InventoryController:
         cols = ("货商姓名", "入库次数")
         data = [(k, str(cnt[k])) for k in cnt]
         self.view.data_page.display_results(cols, data)
+    
+    def refresh_column_display(self, page_type: str):
+        """刷新指定页面的列显示配置"""
+        if not self.view:
+            return
+        
+        if page_type == 'inbound':
+            # 刷新入库登记页的表格列
+            if hasattr(self.view, 'inbound_page'):
+                self.view.inbound_page.refresh_columns()
+        elif page_type == 'outbound':
+            # 刷新出库登记页的表格列
+            if hasattr(self.view, 'outbound_page'):
+                self.view.outbound_page.refresh_columns()
+        elif page_type == 'data_query':
+            # 刷新数据查询页的表格列
+            if hasattr(self.view, 'data_page'):
+                self.view.data_page.refresh_columns()

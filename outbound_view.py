@@ -34,18 +34,23 @@ class OutboundView(ttk.Frame):
         tree_container = ttk.Frame(self)
         tree_container.pack(fill=tk.BOTH, expand=True, padx=10, pady=5)
 
-        # 新增"剩余数量"、"剩余价值"列，显示可出库的信息
-        cols = ("选中", "单号", "商品名称", "商品数量", "剩余数量", "剩余价值", "颜色/配置", "货商姓名", "入库时间")
+        # 从设置中获取要显示的列
+        display_cols = self.controller.settings_model.get_display_columns('outbound')
+        if not display_cols:
+            # 如果没有配置，使用默认列
+            display_cols = ["选中", "单号", "商品名称", "商品数量", "剩余数量", "剩余价值", "颜色/配置", "货商姓名", "入库时间"]
+        
         self.tree = ttk.Treeview(
             tree_container,
-            columns=cols,
+            columns=display_cols,
             show="headings",
             selectmode="none"
         )
-        for c in cols:
+        for c in display_cols:
             self.tree.heading(c, text=c)
             self.tree.column(c, width=100, anchor="center")
-        self.tree.column("选中", width=50)
+        if "选中" in display_cols:
+            self.tree.column("选中", width=50)
         self.tree.tag_configure("selected", background="lightblue")
         self.tree.pack(side=tk.LEFT, fill=tk.BOTH, expand=True)
 
@@ -107,11 +112,25 @@ class OutboundView(ttk.Frame):
     def on_click(self, event):
         if self.tree.identify("region", event.x, event.y) != "cell":
             return
-        if self.tree.identify_column(event.x) != "#1":
+        
+        # 获取当前显示的列
+        display_cols = self.controller.settings_model.get_display_columns('outbound')
+        if not display_cols:
+            display_cols = ["选中", "单号", "商品名称", "商品数量", "剩余数量", "剩余价值", "颜色/配置", "货商姓名", "入库时间"]
+        
+        # 检查是否点击了"选中"列
+        if "选中" in display_cols:
+            selected_col_index = display_cols.index("选中") + 1  # Treeview列索引从1开始
+            if self.tree.identify_column(event.x) != f"#{selected_col_index}":
+                return
+        else:
             return
+            
         item = self.tree.identify_row(event.y)
         if not item:
             return
+            
+        # 使用item作为唯一标识符而不是单号
         if item in self.checked:
             self.checked.remove(item)
             self.tree.set(item, "选中", "☐")
@@ -222,6 +241,11 @@ class OutboundView(ttk.Frame):
         # 保存原始数据用于搜索
         self.all_records = []
         
+        # 获取当前显示的列
+        display_cols = self.controller.settings_model.get_display_columns('outbound')
+        if not display_cols:
+            display_cols = ["选中", "单号", "商品名称", "商品数量", "剩余数量", "剩余价值", "颜色/配置", "货商姓名", "入库时间"]
+        
         for r in recs:
             # 只显示有剩余数量的记录
             remaining_qty = int(r.get('剩余数量', '') or r.get('商品数量', '0'))
@@ -233,22 +257,42 @@ class OutboundView(ttk.Frame):
             
             tag = ("selected",) if counts.get(r.get("入库快递单号", ""), 0) > 1 else ()
             # 计算剩余数量和剩余价值
-            remaining_qty = r.get('剩余数量', '') or r.get('商品数量', '')
+            remaining_qty_str = r.get('剩余数量', '') or r.get('商品数量', '')
             remaining_value = r.get('剩余价值', '') or r.get('结算价', '')
             
-            vals = (
-                "☐",
-                r.get("单号", ""),
-                r.get("商品名称", ""),
-                r.get("商品数量", ""),
-                remaining_qty,
-                remaining_value,
-                r.get("颜色/配置", ""),
-                r.get("货商姓名", ""),
-                r.get("入库时间", "")
-            )
-            self.tree.insert("", tk.END, values=vals, tags=tag)
+            # 根据配置的列构建显示数据
+            vals = []
+            for col in display_cols:
+                if col == "选中":
+                    vals.append("☐")
+                elif col == "剩余数量":
+                    vals.append(remaining_qty_str)
+                elif col == "剩余价值":
+                    vals.append(remaining_value)
+                else:
+                    vals.append(r.get(col, ""))
+            
+            self.tree.insert("", tk.END, values=tuple(vals), tags=tag)
         self._update_selected_count()
+    
+    def refresh_columns(self):
+        """刷新表格列显示配置"""
+        # 获取新的列配置
+        display_cols = self.controller.settings_model.get_display_columns('outbound')
+        if not display_cols:
+            display_cols = ["选中", "单号", "商品名称", "商品数量", "剩余数量", "剩余价值", "颜色/配置", "货商姓名", "入库时间"]
+        
+        # 重新配置表格列
+        self.tree.configure(columns=display_cols)
+        for c in display_cols:
+            self.tree.heading(c, text=c)
+            self.tree.column(c, width=100, anchor="center")
+        if "选中" in display_cols:
+            self.tree.column("选中", width=50)
+        
+        # 刷新数据
+        records = self.controller.model.get_all_records()
+        self.update_inventory_list(records)
 
     def update_counter_list(self, lst):
         cb = self.entries.get('出库档口')
@@ -267,19 +311,23 @@ class OutboundView(ttk.Frame):
             self.checked.clear()
             
             for r in self.all_records:
-                remaining_qty = r.get('剩余数量', '') or r.get('商品数量', '')
-                remaining_value = r.get('剩余价值', '') or r.get('结算价', '')
-                vals = (
-                    "☐",
-                    r.get("单号", ""),
-                    r.get("商品名称", ""),
-                    r.get("商品数量", ""),
-                    remaining_qty,
-                    remaining_value,
-                    r.get("颜色/配置", ""),
-                    r.get("货商姓名", ""),
-                    r.get("入库时间", "")
-                )
+                # 获取当前显示的列
+                display_cols = self.controller.settings_model.get_display_columns('outbound')
+                if not display_cols:
+                    display_cols = ["选中", "单号", "商品名称", "商品数量", "剩余数量", "剩余价值", "颜色/配置", "货商姓名", "入库时间"]
+                
+                # 根据配置的列构建显示数据
+                vals = []
+                for col in display_cols:
+                    if col == "选中":
+                        vals.append("☐")
+                    elif col == "剩余数量":
+                        vals.append(r.get('剩余数量', '') or r.get('商品数量', ''))
+                    elif col == "剩余价值":
+                        vals.append(r.get('剩余价值', '') or r.get('结算价', ''))
+                    else:
+                        vals.append(r.get(col, ""))
+                vals = tuple(vals)
                 self.tree.insert("", tk.END, values=vals)
             self._update_selected_count()
             return
@@ -309,19 +357,23 @@ class OutboundView(ttk.Frame):
                             break
             
             if found:
-                remaining_qty = r.get('剩余数量', '') or r.get('商品数量', '')
-                remaining_value = r.get('剩余价值', '') or r.get('结算价', '')
-                vals = (
-                    "☐",
-                    r.get("单号", ""),
-                    r.get("商品名称", ""),
-                    r.get("商品数量", ""),
-                    remaining_qty,
-                    remaining_value,
-                    r.get("颜色/配置", ""),
-                    r.get("货商姓名", ""),
-                    r.get("入库时间", "")
-                )
+                # 获取当前显示的列
+                display_cols = self.controller.settings_model.get_display_columns('outbound')
+                if not display_cols:
+                    display_cols = ["选中", "单号", "商品名称", "商品数量", "剩余数量", "剩余价值", "颜色/配置", "货商姓名", "入库时间"]
+                
+                # 根据配置的列构建显示数据
+                vals = []
+                for col in display_cols:
+                    if col == "选中":
+                        vals.append("☐")
+                    elif col == "剩余数量":
+                        vals.append(r.get('剩余数量', '') or r.get('商品数量', ''))
+                    elif col == "剩余价值":
+                        vals.append(r.get('剩余价值', '') or r.get('结算价', ''))
+                    else:
+                        vals.append(r.get(col, ""))
+                vals = tuple(vals)
                 self.tree.insert("", tk.END, values=vals)
                 
         self._update_selected_count()

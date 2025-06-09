@@ -14,6 +14,7 @@ class SettingsView(ttk.Frame):
         self.nb.add(self._create_counters_page(), text="出库档口")
         self.nb.add(self._create_tables_page(), text="记录表")
         self.nb.add(self._create_mapping_page(), text="条形码映射")
+        self.nb.add(self._create_column_display_page(), text="表格列显示")
         self.nb.pack(fill=tk.BOTH, expand=True)
 
     # --- 供应商页 ---
@@ -254,3 +255,186 @@ class SettingsView(ttk.Frame):
         if messagebox.askyesno("确认", f"删除条形码 {code} 的映射？"):
             self.settings_model.delete_barcode_mapping(code)
             self._refresh_mapping_list()
+
+    # --- 表格列显示配置页 ---
+    def _create_column_display_page(self):
+        page = ttk.Frame(self.nb)
+        
+        # 页面类型选择
+        type_frame = ttk.Frame(page)
+        type_frame.pack(fill=tk.X, padx=5, pady=5)
+        ttk.Label(type_frame, text="页面类型:").pack(side=tk.LEFT, padx=5)
+        self.cb_page_type = ttk.Combobox(type_frame, values=[
+            "入库登记页", "出库登记页", "数据查询页"
+        ], state="readonly", width=20)
+        self.cb_page_type.pack(side=tk.LEFT, padx=5)
+        self.cb_page_type.bind("<<ComboboxSelected>>", self._on_page_type_change)
+        self.cb_page_type.current(0)
+        
+        # 列配置区域
+        config_frame = ttk.Frame(page)
+        config_frame.pack(fill=tk.BOTH, expand=True, padx=5, pady=5)
+        
+        # 可用列列表
+        left_frame = ttk.Frame(config_frame)
+        left_frame.pack(side=tk.LEFT, fill=tk.BOTH, expand=True, padx=(0,5))
+        ttk.Label(left_frame, text="可用列:").pack(anchor="w")
+        self.available_listbox = tk.Listbox(left_frame, selectmode=tk.MULTIPLE, height=15)
+        self.available_listbox.pack(fill=tk.BOTH, expand=True)
+        
+        # 中间按钮
+        middle_frame = ttk.Frame(config_frame)
+        middle_frame.pack(side=tk.LEFT, padx=5)
+        ttk.Button(middle_frame, text="→", command=self._add_column).pack(pady=5)
+        ttk.Button(middle_frame, text="←", command=self._remove_column).pack(pady=5)
+        ttk.Button(middle_frame, text="↑", command=self._move_up).pack(pady=5)
+        ttk.Button(middle_frame, text="↓", command=self._move_down).pack(pady=5)
+        
+        # 显示列列表
+        right_frame = ttk.Frame(config_frame)
+        right_frame.pack(side=tk.LEFT, fill=tk.BOTH, expand=True, padx=(5,0))
+        ttk.Label(right_frame, text="显示列:").pack(anchor="w")
+        self.display_listbox = tk.Listbox(right_frame, selectmode=tk.SINGLE, height=15)
+        self.display_listbox.pack(fill=tk.BOTH, expand=True)
+        
+        # 底部按钮
+        btn_frame = ttk.Frame(page)
+        btn_frame.pack(fill=tk.X, padx=5, pady=5)
+        ttk.Button(btn_frame, text="保存配置", command=self._save_column_config).pack(side=tk.LEFT, padx=5)
+        ttk.Button(btn_frame, text="重置默认", command=self._reset_column_config).pack(side=tk.LEFT, padx=5)
+        
+        # 初始化显示
+        self._refresh_column_config()
+        
+        return page
+    
+    def _get_page_type_key(self):
+        """获取当前选择的页面类型对应的键"""
+        type_map = {
+            "入库登记页": "inbound",
+            "出库登记页": "outbound", 
+            "数据查询页": "data_query"
+        }
+        return type_map.get(self.cb_page_type.get(), "inbound")
+    
+    def _on_page_type_change(self, event=None):
+        """页面类型改变时刷新列配置"""
+        self._refresh_column_config()
+    
+    def _refresh_column_config(self):
+        """刷新列配置显示"""
+        page_type = self._get_page_type_key()
+        
+        # 获取所有可用列和当前显示列
+        available_columns = self.settings_model.get_available_columns(page_type)
+        display_columns = self.settings_model.get_display_columns(page_type)
+        
+        # 更新可用列列表（排除已显示的列）
+        self.available_listbox.delete(0, tk.END)
+        for col in available_columns:
+            if col not in display_columns:
+                self.available_listbox.insert(tk.END, col)
+        
+        # 更新显示列列表
+        self.display_listbox.delete(0, tk.END)
+        for col in display_columns:
+            self.display_listbox.insert(tk.END, col)
+    
+    def _add_column(self):
+        """添加选中的列到显示列表"""
+        selection = self.available_listbox.curselection()
+        if not selection:
+            messagebox.showwarning("提示", "请选择要添加的列")
+            return
+        
+        # 获取选中的列
+        selected_columns = [self.available_listbox.get(i) for i in selection]
+        
+        # 添加到显示列表
+        for col in selected_columns:
+            self.display_listbox.insert(tk.END, col)
+        
+        # 从可用列表中移除
+        for i in reversed(selection):
+            self.available_listbox.delete(i)
+    
+    def _remove_column(self):
+        """从显示列表中移除选中的列"""
+        selection = self.display_listbox.curselection()
+        if not selection:
+            messagebox.showwarning("提示", "请选择要移除的列")
+            return
+        
+        # 获取选中的列
+        selected_column = self.display_listbox.get(selection[0])
+        
+        # 从显示列表中移除
+        self.display_listbox.delete(selection[0])
+        
+        # 添加到可用列表
+        self.available_listbox.insert(tk.END, selected_column)
+    
+    def _move_up(self):
+        """向上移动选中的显示列"""
+        selection = self.display_listbox.curselection()
+        if not selection or selection[0] == 0:
+            return
+        
+        index = selection[0]
+        item = self.display_listbox.get(index)
+        self.display_listbox.delete(index)
+        self.display_listbox.insert(index - 1, item)
+        self.display_listbox.selection_set(index - 1)
+    
+    def _move_down(self):
+        """向下移动选中的显示列"""
+        selection = self.display_listbox.curselection()
+        if not selection or selection[0] == self.display_listbox.size() - 1:
+            return
+        
+        index = selection[0]
+        item = self.display_listbox.get(index)
+        self.display_listbox.delete(index)
+        self.display_listbox.insert(index + 1, item)
+        self.display_listbox.selection_set(index + 1)
+    
+    def _save_column_config(self):
+        """保存列配置"""
+        page_type = self._get_page_type_key()
+        display_columns = [self.display_listbox.get(i) for i in range(self.display_listbox.size())]
+        
+        if not display_columns:
+            messagebox.showwarning("提示", "至少需要显示一列")
+            return
+        
+        self.settings_model.set_display_columns(page_type, display_columns)
+        
+        # 通知控制器刷新相关页面
+        if hasattr(self.controller, 'refresh_column_display'):
+            self.controller.refresh_column_display(page_type)
+        
+        messagebox.showinfo("成功", "列配置已保存并应用！")
+    
+    def _reset_column_config(self):
+        """重置为默认列配置"""
+        if not messagebox.askyesno("确认", "确定要重置为默认配置吗？"):
+            return
+        
+        page_type = self._get_page_type_key()
+        
+        # 设置默认列配置
+        if page_type == 'inbound':
+            default_columns = ['入库快递单号', '货商姓名', '商品名称', '商品数量', '入库时间', '颜色/配置']
+        elif page_type == 'outbound':
+            default_columns = ['选中', '单号', '商品名称', '商品数量', '剩余数量', '剩余价值', '颜色/配置', '货商姓名', '入库时间']
+        else:  # data_query
+            default_columns = ['单号', '货商姓名', '入库时间', '商品名称', '商品数量', '买价', '佣金', '结算价', '出库状态']
+        
+        self.settings_model.set_display_columns(page_type, default_columns)
+        self._refresh_column_config()
+        
+        # 刷新对应页面的列显示
+        if hasattr(self.controller, 'refresh_column_display'):
+            self.controller.refresh_column_display(page_type)
+        
+        messagebox.showinfo("成功", "已重置为默认配置并应用！")

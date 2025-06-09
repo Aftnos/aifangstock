@@ -136,8 +136,8 @@ class DataView(ttk.Frame):
             self.controller.view_by_tracking_number_unified(c)
 
     def display_results(self, cols, data):
-        # 保存列和原始数据
-        self.columns = list(cols)
+        # 保存所有列和原始数据
+        self.all_columns = list(cols)
         self.orig = [dict(zip(cols, row)) for row in data]
         # 计算利润
         for d in self.orig:
@@ -148,8 +148,19 @@ class DataView(ttk.Frame):
                 d["利润"] = ""
         self.full = list(self.orig)
 
+        # 从设置中获取要显示的列
+        display_cols = self.controller.settings_model.get_display_columns('data_query')
+        if not display_cols:
+            # 如果没有配置，使用所有列
+            display_cols = self.all_columns
+        
+        # 只保留存在的列
+        self.columns = [col for col in display_cols if col in self.all_columns]
+        if not self.columns:
+            self.columns = self.all_columns
+
         # 默认按照入库时间降序排列
-        if '入库时间' in self.columns:
+        if '入库时间' in self.all_columns:
             self.full.sort(key=lambda d: self._parse_datetime(
                 d.get('入库时间', '0000-01-01 00:00:00')
             ), reverse=True)
@@ -178,6 +189,47 @@ class DataView(ttk.Frame):
         # 重建筛选区
         self.create_filter_row()
 
+        # 更新指标
+        self.update_metrics()
+    
+    def refresh_columns(self):
+        """刷新表格列显示配置"""
+        if not hasattr(self, 'all_columns') or not self.all_columns:
+            return
+        
+        # 从设置中获取要显示的列
+        display_cols = self.controller.settings_model.get_display_columns('data_query')
+        if not display_cols:
+            display_cols = self.all_columns
+        
+        # 只保留存在的列
+        self.columns = [col for col in display_cols if col in self.all_columns]
+        if not self.columns:
+            self.columns = self.all_columns
+        
+        # 重建表头
+        self.tree.delete(*self.tree.get_children())
+        self.tree["columns"] = self.columns
+        self.sort_states = {c: True for c in self.columns}
+        for c in self.columns:
+            self.tree.heading(c, text=c, command=lambda c=c: self.sort_by(c))
+            self.tree.column(c, width=100, anchor="center")
+        
+        # 重新插入数据
+        for d in self.full:
+            vals = []
+            for c in self.columns:
+                if c == "出库记录":
+                    vals.append("双击查询详细")
+                else:
+                    vals.append(d.get(c,""))
+            status = d.get("出库状态","")
+            tag = "outbound" if status == "卖出" else "inbound"
+            self.tree.insert("", tk.END, values=vals, tags=(tag,))
+        
+        # 重建筛选区
+        self.create_filter_row()
+        
         # 更新指标
         self.update_metrics()
 
