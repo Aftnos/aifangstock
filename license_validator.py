@@ -218,6 +218,17 @@ class LicenseValidator:
         root = Tk()
         root.withdraw()  # 隐藏主窗口
         
+        # 设置窗口图标
+        try:
+            from gui_view import ICON_BASE64
+            import tkinter as tk
+            icon = tk.PhotoImage(data=ICON_BASE64)
+            root.iconphoto(False, icon)
+            # 保存引用，避免被垃圾回收
+            root._icon = icon
+        except Exception as e:
+            print("无法设置图标:", e)
+        
         # 显示激活提示
         if not messagebox.askyesno("授权验证", f"{message}\n是否现在激活软件?"):
             return False, "用户取消了激活过程"

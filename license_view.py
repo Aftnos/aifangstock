@@ -172,6 +172,16 @@ class LicenseView(ttk.Frame):
         root.geometry("300x150")
         root.resizable(False, False)
         
+        # 设置窗口图标
+        try:
+            from gui_view import ICON_BASE64
+            icon = tk.PhotoImage(data=ICON_BASE64)
+            root.iconphoto(False, icon)
+            # 保存引用，避免被垃圾回收
+            root._icon = icon
+        except Exception as e:
+            print("无法设置图标:", e)
+        
         # 居中显示
         root.update_idletasks()
         width = root.winfo_width()

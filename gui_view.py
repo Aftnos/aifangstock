@@ -22,7 +22,7 @@ class InventoryMainView:
         # 创建主窗口
         self.root = tk.Tk()
         # 设置窗口标题
-        self.root.title("艾方存货管家 2.1.0")
+        self.root.title("艾方存货管家 2.3.1")
 
         try:
             icon = tk.PhotoImage(data=ICON_BASE64)

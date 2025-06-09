@@ -405,6 +405,16 @@ class DataView(ttk.Frame):
         detail_window.geometry("600x400")
         detail_window.resizable(True, True)
         
+        # 设置窗口图标
+        try:
+            from gui_view import ICON_BASE64
+            icon = tk.PhotoImage(data=ICON_BASE64)
+            detail_window.iconphoto(False, icon)
+            # 保存引用，避免被垃圾回收
+            detail_window._icon = icon
+        except Exception as e:
+            print("无法设置图标:", e)
+        
         # 商品信息标题
         info_frame = ttk.Frame(detail_window)
         info_frame.pack(fill="x", padx=10, pady=5)
