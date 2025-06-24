@@ -137,10 +137,14 @@ class InventoryModel:
                 reader = csv.DictReader(f)
                 for row in reader:
                     records.append(row)
-        except Exception as e:
-            print(f"读取记录时发生错误: {e}")
-            # 如果文件不存在或读取失败，确保文件被初始化
+        except FileNotFoundError:
+            # 文件不存在时初始化一个空的 CSV
             self.initialize_csv()
+            return []
+        except Exception as e:
+            # 其他异常直接打印出来，避免静默失败
+            print(f"读取记录时发生错误: {e}")
+            return []
         return records
     
     def partial_outbound(self, order_number: str, outbound_quantity: int, tracking_number: str, counter: str) -> bool:
