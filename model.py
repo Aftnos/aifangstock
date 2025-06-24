@@ -1,6 +1,7 @@
 import os
 import sys
 import csv
+import tempfile
 
 class InventoryModel:
     # CSV 文件的表头
@@ -88,10 +89,22 @@ class InventoryModel:
                     break
             if not found:
                 return False
-            with open(self.filename, 'w', newline='', encoding="gb2312") as f:
-                writer = csv.DictWriter(f, fieldnames=self.CSV_HEADER)
+
+            temp_file = tempfile.NamedTemporaryFile(
+                "w", newline="", encoding="gb2312", delete=False, dir=self.data_dir
+            )
+            try:
+                writer = csv.DictWriter(temp_file, fieldnames=self.CSV_HEADER)
                 writer.writeheader()
                 writer.writerows(records)
+                temp_file.close()
+                os.replace(temp_file.name, self.filename)
+            finally:
+                if not temp_file.closed:
+                    temp_file.close()
+                if os.path.exists(temp_file.name) and temp_file.name != self.filename:
+                    os.remove(temp_file.name)
+
             return True
         except Exception as e:
             print(f"更新记录时发生错误: {e}")
@@ -106,10 +119,22 @@ class InventoryModel:
             new_records = [r for r in records if r.get('单号') != order_number]
             if len(new_records) == len(records):
                 return False
-            with open(self.filename, 'w', newline='', encoding="gb2312") as f:
-                writer = csv.DictWriter(f, fieldnames=self.CSV_HEADER)
+
+            temp_file = tempfile.NamedTemporaryFile(
+                "w", newline="", encoding="gb2312", delete=False, dir=self.data_dir
+            )
+            try:
+                writer = csv.DictWriter(temp_file, fieldnames=self.CSV_HEADER)
                 writer.writeheader()
                 writer.writerows(new_records)
+                temp_file.close()
+                os.replace(temp_file.name, self.filename)
+            finally:
+                if not temp_file.closed:
+                    temp_file.close()
+                if os.path.exists(temp_file.name) and temp_file.name != self.filename:
+                    os.remove(temp_file.name)
+
             return True
         except Exception as e:
             print(f"删除记录时发生错误: {e}")
@@ -214,9 +239,19 @@ class InventoryModel:
         if not found:
             return False
             
-        # 写回文件
-        with open(self.filename, 'w', newline='', encoding="gb2312") as f:
-            writer = csv.DictWriter(f, fieldnames=self.CSV_HEADER)
+        temp_file = tempfile.NamedTemporaryFile(
+            "w", newline="", encoding="gb2312", delete=False, dir=self.data_dir
+        )
+        try:
+            writer = csv.DictWriter(temp_file, fieldnames=self.CSV_HEADER)
             writer.writeheader()
             writer.writerows(records)
+            temp_file.close()
+            os.replace(temp_file.name, self.filename)
+        finally:
+            if not temp_file.closed:
+                temp_file.close()
+            if os.path.exists(temp_file.name) and temp_file.name != self.filename:
+                os.remove(temp_file.name)
+
         return True
