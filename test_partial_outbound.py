@@ -8,9 +8,9 @@ import sys
 import os
 sys.path.append(os.path.dirname(__file__))
 
-from model import InventoryModel
-from controller import InventoryController
-from settings_model import SettingsModel
+from aifangstock.models.inventory import InventoryModel
+from aifangstock.controllers.inventory_controller import InventoryController
+from aifangstock.models.settings import SettingsModel
 
 def test_partial_outbound():
     print("=== 测试分数量出库功能 ===")

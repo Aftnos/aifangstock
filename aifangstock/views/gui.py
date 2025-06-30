@@ -2,12 +2,12 @@ import os
 import base64
 import tkinter as tk
 from tkinter import ttk
-from inbound_view import InboundView
-from outbound_view import OutboundView
-from data_view import DataView
-from modify_view import ModifyView
-from settings_view import SettingsView
-from update_view import UpdateView
+from .inbound import InboundView
+from .outbound import OutboundView
+from .data import DataView
+from .modify import ModifyView
+from .settings import SettingsView
+from .update import UpdateView
 from license_view import LicenseView
 
 # 请将此处的 ICON_BASE64 替换为你的 logo 图像（GIF 或 PNG 格式）的 Base64 编码字符串

@@ -16,22 +16,30 @@
 
 ```
 ├── main.py                 # 程序入口
-├── controller.py           # 业务逻辑控制器
-├── model.py                # 数据模型，读写 CSV 表
-├── settings_model.py       # 设置及条形码映射管理
-├── gui_view.py             # 主界面及各功能页的整合
-├── inbound_view.py         # 入库登记界面
-├── outbound_view.py        # 出库登记界面
-├── data_view.py            # 数据查询界面
-├── modify_view.py          # 数据修改界面
-├── settings_view.py        # 设置界面
-├── update_view.py          # 版本更新界面
-├── license_view.py         # 授权信息界面
-├── license_validator.py    # 授权验证逻辑
-├── barcode_model.py        # 简单条形码映射模型
+├── aifangstock/            # 应用包
+│   ├── controllers/
+│   │   └── inventory_controller.py
+│   ├── models/
+│   │   ├── inventory.py
+│   │   ├── settings.py
+│   │   └── barcode.py
+│   ├── views/
+│   │   ├── gui.py
+│   │   ├── inbound.py
+│   │   ├── outbound.py
+│   │   ├── data.py
+│   │   ├── modify.py
+│   │   ├── settings.py
+│   │   ├── update.py
+│   │   └── license.py
+│   └── utils/
+│       ├── logger.py
+│       ├── backup_manager.py
+│       └── license_validator.py
 ├── server/                 # PHP 实现的授权与更新服务器示例
-│   ├── 授权/               # 授权服务器脚本
-│   └── 更新/               # 更新服务器脚本及版本文件
+│   ├── 授权/
+│   └── 更新/
+├── tests/                  # 单元测试
 └── requirements.txt        # Python 依赖列表
 ```
 
@@ -64,11 +72,11 @@ python main.py
 
 ## 开发约定
 
-- **代码结构**：遵循 MVC 思路，`model.py` 与 `settings_model.py` 负责数据存取，`controller.py` 负责业务逻辑，视图部分位于各 `*_view.py` 文件中。
+- **代码结构**：遵循 MVC 思路，源码位于 `aifangstock` 包内：`models/` 存放数据层，`controllers/` 处理业务逻辑，`views/` 实现界面展示，通用工具放在 `utils/` 中。
 - **编码规范**：项目采用标准的 PEP 8 风格，文件使用 UTF‑8 编码，缩进为 4 个空格。
 - **数据格式**：库存数据以 GB2312 编码的 CSV 文件保存，表头由 `InventoryModel.CSV_HEADER` 定义。
-- **配置管理**：`settings_model.py` 负责读取和保存 `config/settings.json` 及条形码映射文件。
-- **扩展指引**：添加新功能页时，可在 `gui_view.py` 的 `Notebook` 中新增 Tab，并在相应的控制器和模型中实现业务逻辑。
+- **配置管理**：`models/settings.py` 负责读取和保存 `config/settings.json` 及条形码映射文件。
+- **扩展指引**：添加新功能页时，可在 `views/gui.py` 的 `Notebook` 中新增 Tab，并在相应的控制器和模型中实现业务逻辑。
 
 ## 更新与部署
 
@@ -127,7 +135,7 @@ python main.py
 ### 2.3.6版本更新
 
 #### 动态列显示功能
-- **settings_model.py 列配置管理**：
+- **models/settings.py 列配置管理**：
   - 新增 `get_display_columns()` 方法：获取指定页面类型的显示列配置
   - 新增 `save_display_columns()` 方法：保存页面显示列配置
   - 新增 `get_default_columns()` 方法：获取各页面的默认列配置

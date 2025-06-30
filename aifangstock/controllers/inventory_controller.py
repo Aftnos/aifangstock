@@ -1,11 +1,13 @@
 import time
-from model import InventoryModel
-from settings_model import SettingsModel
+from ..models.inventory import InventoryModel
+from ..models.settings import SettingsModel
+from ..utils.backup_manager import BackupManager
 
 class InventoryController:
     def __init__(self, model: InventoryModel, settings_model: SettingsModel, root=None):
         self.model = model
         self.settings_model = settings_model
+        self.backup_manager = BackupManager(settings_model)
         self.view = None
         self.root = None
 
@@ -55,6 +57,7 @@ class InventoryController:
         success = self.model.add_record(record)
         if success:
             self.refresh_inventory_list()
+            self.backup_manager.backup_on_operation('inbound')
         return success
 
     def handle_outbound_registration(self, order: str, info: dict) -> bool:
@@ -68,6 +71,7 @@ class InventoryController:
         success = self.model.update_record(order, updated)
         if success:
             self.refresh_inventory_list()
+            self.backup_manager.backup_on_operation('outbound')
         return success
     
     def handle_partial_outbound(self, order: str, quantity: int, tracking_number: str, counter: str) -> bool:
@@ -77,6 +81,7 @@ class InventoryController:
         success = self.model.partial_outbound(order, quantity, tracking_number, counter)
         if success:
             self.refresh_inventory_list()
+            self.backup_manager.backup_on_operation('partial_outbound')
         return success
 
     def handle_modify(self, order: str, updated_fields: dict) -> tuple[bool, str]:
@@ -126,6 +131,7 @@ class InventoryController:
         success = self.model.update_record(order, updated_fields)
         if success:
             self.refresh_inventory_list()
+            self.backup_manager.backup_on_operation('modify')
             return True, "修改成功"
         return False, "数据库更新失败"
 
@@ -133,6 +139,7 @@ class InventoryController:
         success = self.model.delete_record(order)
         if success:
             self.refresh_inventory_list()
+            self.backup_manager.backup_on_operation('delete')
         return success
 
     def refresh_inventory_list(self):
@@ -251,3 +258,8 @@ class InventoryController:
             # 刷新数据查询页的表格列
             if hasattr(self.view, 'data_page'):
                 self.view.data_page.refresh_columns()
+
+    def stop_services(self):
+        """停止后台服务，如自动备份线程"""
+        if hasattr(self, 'backup_manager'):
+            self.backup_manager.stop_auto_backup_thread()

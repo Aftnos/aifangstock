@@ -1,6 +1,6 @@
 import tkinter as tk
 from tkinter import ttk
-from license_validator import LicenseValidator
+from ..utils.license_validator import LicenseValidator
 from datetime import datetime
 
 class LicenseView(ttk.Frame):
@@ -174,7 +174,7 @@ class LicenseView(ttk.Frame):
         
         # 设置窗口图标
         try:
-            from gui_view import ICON_BASE64
+            from .gui import ICON_BASE64
             icon = tk.PhotoImage(data=ICON_BASE64)
             root.iconphoto(False, icon)
             # 保存引用，避免被垃圾回收

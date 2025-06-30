@@ -38,7 +38,7 @@ class InventoryModel:
         if getattr(sys, 'frozen', False):
             base = os.path.dirname(sys.executable)
         else:
-            base = os.path.dirname(__file__)
+            base = os.path.abspath(os.path.join(os.path.dirname(__file__), '..', '..'))
         # 在基础目录下创建 data 文件夹
         self.data_dir = os.path.join(base, 'data')
         os.makedirs(self.data_dir, exist_ok=True)
