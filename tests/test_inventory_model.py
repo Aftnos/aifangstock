@@ -2,7 +2,7 @@ import os
 import uuid
 import pytest
 
-from model import InventoryModel
+from aifangstock.models.inventory import InventoryModel
 
 
 def make_record(order="ORDER001", qty="20", price="100.00"):

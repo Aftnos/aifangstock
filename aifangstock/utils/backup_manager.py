@@ -1,11 +1,12 @@
 import os
+import sys
 import shutil
 import json
 import threading
 import time
 from datetime import datetime
 from typing import Optional
-from logger import get_logger
+from .logger import get_logger
 
 class BackupManager:
     def __init__(self, settings_model):
@@ -31,8 +32,12 @@ class BackupManager:
     
     def get_data_file_path(self) -> str:
         """获取数据文件路径"""
-        # 假设数据文件在data目录下
-        data_dir = os.path.join(os.path.dirname(__file__), 'data')
+        # 假设数据文件在项目根目录下的 data 目录
+        if getattr(sys, 'frozen', False):
+            base = os.path.dirname(sys.executable)
+        else:
+            base = os.path.abspath(os.path.join(os.path.dirname(__file__), '..', '..'))
+        data_dir = os.path.join(base, 'data')
         active_table = self.settings_model.get_active_table()
         return os.path.join(data_dir, f'{active_table}.csv')
     

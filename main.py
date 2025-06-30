@@ -3,11 +3,11 @@ from tkinter import Tk, messagebox
 import datetime
 import time
 
-from model import InventoryModel
-from settings_model import SettingsModel
-from controller import InventoryController
-from gui_view import InventoryMainView
-from license_validator import LicenseValidator
+from aifangstock.models.inventory import InventoryModel
+from aifangstock.models.settings import SettingsModel
+from aifangstock.controllers.inventory_controller import InventoryController
+from aifangstock.views.gui import InventoryMainView
+from aifangstock.utils.license_validator import LicenseValidator
 
 def check_expiration():
     # 使用基于硬件信息的许可证验证
@@ -52,6 +52,9 @@ def main():
 
     # 启动主界面
     view.start()
+
+    # 停止后台服务
+    controller.stop_services()
 
     # 确保主界面关闭后进程退出
     sys.exit(0)

@@ -36,6 +36,12 @@ class SettingsModel:
                 'inbound': ['入库快递单号', '货商姓名', '商品名称', '商品数量', '入库时间', '颜色/配置'],
                 'outbound': ['选中', '单号', '商品名称', '商品数量', '剩余数量', '剩余价值', '颜色/配置', '货商姓名', '入库时间'],
                 'data_query': ['单号', '货商姓名', '入库时间', '商品名称', '商品数量', '买价', '佣金', '结算价', '出库状态']
+            },
+            'backup_settings': {
+                'enabled': True,
+                'backup_on_operation': True,
+                'auto_backup_interval': 24,
+                'max_backups': 10,
             }
         }
             self._save_settings()
@@ -193,4 +199,20 @@ class SettingsModel:
         if 'column_display' not in self.settings:
             self.settings['column_display'] = {}
         self.settings['column_display'][page_type] = columns
+        self._save_settings()
+
+    # -------- 备份设置管理 --------
+    def get_backup_settings(self) -> dict:
+        """获取备份设置"""
+        return self.settings.get('backup_settings', {
+            'enabled': True,
+            'backup_on_operation': True,
+            'auto_backup_interval': 24,
+            'max_backups': 10,
+        })
+
+    def update_backup_settings(self, **kwargs):
+        """更新备份设置"""
+        backup_settings = self.settings.setdefault('backup_settings', self.get_backup_settings())
+        backup_settings.update(kwargs)
         self._save_settings()

@@ -220,7 +220,7 @@ class LicenseValidator:
         
         # 设置窗口图标
         try:
-            from gui_view import ICON_BASE64
+            from ..views.gui import ICON_BASE64
             import tkinter as tk
             icon = tk.PhotoImage(data=ICON_BASE64)
             root.iconphoto(False, icon)

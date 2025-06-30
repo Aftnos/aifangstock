@@ -407,7 +407,7 @@ class DataView(ttk.Frame):
         
         # 设置窗口图标
         try:
-            from gui_view import ICON_BASE64
+            from .gui import ICON_BASE64
             icon = tk.PhotoImage(data=ICON_BASE64)
             detail_window.iconphoto(False, icon)
             # 保存引用，避免被垃圾回收
