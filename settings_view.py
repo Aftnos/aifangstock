@@ -15,6 +15,7 @@ class SettingsView(ttk.Frame):
         self.nb.add(self._create_tables_page(), text="记录表")
         self.nb.add(self._create_mapping_page(), text="条形码映射")
         self.nb.add(self._create_column_display_page(), text="表格列显示")
+        self.nb.add(self._create_field_defaults_page(), text="字段默认值")
         self.nb.pack(fill=tk.BOTH, expand=True)
 
     # --- 供应商页 ---
@@ -438,3 +439,81 @@ class SettingsView(ttk.Frame):
             self.controller.refresh_column_display(page_type)
         
         messagebox.showinfo("成功", "已重置为默认配置并应用！")
+
+    # --- 字段默认值页 ---
+    def _create_field_defaults_page(self):
+        page = ttk.Frame(self.nb)
+        
+        # 入库买价默认值
+        ttk.Label(page, text="入库买价默认值:").grid(row=0, column=0, sticky="e", padx=10, pady=10)
+        self.ent_price_default = ttk.Entry(page, width=20)
+        self.ent_price_default.grid(row=0, column=1, sticky="w", padx=10, pady=10)
+        # 不整数也是有效的（如 0.5）
+        price_default = self.settings_model.get_inbound_price_default()
+        self.ent_price_default.insert(0, str(price_default))
+        
+        # 入库佣金默认值
+        ttk.Label(page, text="入库佣金默认值:").grid(row=1, column=0, sticky="e", padx=10, pady=10)
+        self.ent_commission_default = ttk.Entry(page, width=20)
+        self.ent_commission_default.grid(row=1, column=1, sticky="w", padx=10, pady=10)
+        # 不整数也是有效的（如 0.5）
+        commission_default = self.settings_model.get_inbound_commission_default()
+        self.ent_commission_default.insert(0, str(commission_default))
+        
+        # 入库数量默认值
+        ttk.Label(page, text="入库数量默认值:").grid(row=2, column=0, sticky="e", padx=10, pady=10)
+        self.ent_quantity_default = ttk.Entry(page, width=20)
+        self.ent_quantity_default.grid(row=2, column=1, sticky="w", padx=10, pady=10)
+        # 应为整数
+        quantity_default = self.settings_model.get_inbound_quantity_default()
+        self.ent_quantity_default.insert(0, str(quantity_default))
+        
+        # 描述
+        ttk.Label(page, text="说明:").grid(row=3, column=0, columnspan=2, sticky="w", padx=10, pady=5)
+        desc_text = (
+            "• 买价默认值：每次打开入库登记页面或提交一个订单后\n"
+            "买价字段初始值（支持小数序）\n"
+            "• 佣金默认值：每次打开入库登记页面或提交一个订单后\n"
+            "佣金字段初始值（支持小数序）\n"
+            "• 数量默认值：每次打开入库登记页面或提交一个订单后\n"
+            "数量字段初始值（必须为整数）"
+        )
+        ttk.Label(page, text=desc_text, justify="left").grid(row=4, column=0, columnspan=2, sticky="w", padx=10, pady=5)
+        
+        # 保存按钮
+        ttk.Button(page, text="保存", command=self._save_field_defaults).grid(row=5, column=0, columnspan=2, pady=20)
+        
+        return page
+    
+    def _save_field_defaults(self):
+        """保存字段默认值"""
+        try:
+            # 验证并转换买价
+            try:
+                price_val = float(self.ent_price_default.get())
+            except ValueError:
+                messagebox.showerror("错误", "买价默认值必须是数字")
+                return
+            
+            # 验证并转换佣金
+            try:
+                comm_val = float(self.ent_commission_default.get())
+            except ValueError:
+                messagebox.showerror("错误", "佣金默认值必须是数字")
+                return
+            
+            # 验证并转换数量
+            try:
+                qty_val = int(self.ent_quantity_default.get())
+            except ValueError:
+                messagebox.showerror("错误", "数量默认值必须是整数")
+                return
+            
+            # 保存到配置
+            self.settings_model.set_inbound_price_default(price_val)
+            self.settings_model.set_inbound_commission_default(comm_val)
+            self.settings_model.set_inbound_quantity_default(qty_val)
+            
+            messagebox.showinfo("成功", "字段默认值已保存！\n下次打开入库登记页面时将使用新的默认值")
+        except Exception as e:
+            messagebox.showerror("错误", f"保存失败: {str(e)}")

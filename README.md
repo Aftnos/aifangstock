@@ -1,6 +1,6 @@
 # 艾方存货管家
 
-该项目是一套使用 Python Tkinter 构建的桌面出入库管理系统，提供从入库登记、出库登记、库存数据查询到数据修改、基础配置等一整套功能，并内置软件授权验证及自动更新机制。数据以 CSV 文件方式存储，适合小型或中型库存场景。
+该项目是一套使用 Python Tkinter 构建的桌面出入库管理系统，提供从入库登记、出库登记、库存数据查询到数据修改、基础配置等一整套功能，并内置自动更新机制。数据以 CSV 文件方式存储，适合小型或中型库存场景。
 
 ## 功能概览
 
@@ -10,7 +10,6 @@
 - **数据修改**：列表式显示所有记录，可根据条件筛选并编辑或删除单条记录。
 - **设置**：维护供应商列表、出库档口、数据表（CSV 文件）以及条形码与商品名映射关系。
 - **软件更新**：通过远程服务器检查并下载新版本，支持解压或直接执行安装程序。
-- **授权管理**：基于硬件信息的授权验证及激活流程，授权信息 AES 加密保存在 `config/license.dat` 中。
 
 ## 目录结构
 
@@ -26,11 +25,8 @@
 ├── modify_view.py          # 数据修改界面
 ├── settings_view.py        # 设置界面
 ├── update_view.py          # 版本更新界面
-├── license_view.py         # 授权信息界面
-├── license_validator.py    # 授权验证逻辑
 ├── barcode_model.py        # 简单条形码映射模型
-├── server/                 # PHP 实现的授权与更新服务器示例
-│   ├── 授权/               # 授权服务器脚本
+├── server/                 # PHP 实现的更新服务器示例
 │   └── 更新/               # 更新服务器脚本及版本文件
 └── requirements.txt        # Python 依赖列表
 ```
@@ -38,7 +34,7 @@
 运行过程中会在程序目录下创建以下文件夹：
 
 - `data/`：存放每个数据表对应的 CSV 文件。
-- `config/`：保存 `settings.json`、`barcode_mappings.json` 以及 `license.dat` 等配置文件。
+- `config/`：保存 `settings.json` 和 `barcode_mappings.json` 等配置文件。
 - `updata/`：下载更新包并执行更新时使用的临时目录。
 
 ## 环境依赖
@@ -50,7 +46,7 @@
 pip install -r requirements.txt
 ```
 
-部分功能在 Windows 平台下依赖 WMI 获取硬件信息及 Tkinter 图形界面，其他平台的兼容性未做充分测试。
+主要在 Windows 平台下使用 Tkinter 图形界面，其他平台的兼容性未做充分测试。
 
 ## 启动方式
 
@@ -60,7 +56,7 @@ pip install -r requirements.txt
 python main.py
 ```
 
-首次运行若未找到授权文件，会弹出授权窗口并要求输入激活码。授权信息验证通过后即可进入主界面。
+安装依赖后即可直接运行，无需授权验证，可直接进入主界面。
 
 ## 开发约定
 
@@ -72,11 +68,10 @@ python main.py
 
 ## 更新与部署
 
-项目附带 `server/` 目录作为示例实现，包含 PHP 版授权服务器和更新服务器脚本。生产环境可根据自身需求进行二次开发：
+项目附带 `server/` 目录作为示例实现，包含 PHP 版更新服务器脚本。生产环境可根据自身需求进行二次开发：
 
-1. **授权服务器**：`server/授权/validate.php` 提供激活、校验和远程恢复等接口，需要部署在支持 PHP 7 且具备 MySQL 数据库的环境中。
-2. **更新服务器**：`server/更新/index.php` 支持客户端检查更新、下载更新包以及上传新版本，版本信息存储在 `server/更新/version.json`。
-3. **客户端配置**：`license_validator.py` 和 `update_view.py` 中分别定义了授权服务器及更新服务器的 URL，可根据部署地址修改。
+1. **更新服务器**：`server/更新/index.php` 支持客户端检查更新、下载更新包以及上传新版本，版本信息存储在 `server/更新/version.json`。
+2. **客户端配置**：`update_view.py` 中定义了更新服务器的 URL，可根据部署地址修改。
 
 ## 贡献指南
 
@@ -158,8 +153,6 @@ python main.py
 
 - **弹出窗口图标统一**：
   - **data_view.py**：为出库记录详细窗口（`show_outbound_details` 方法）设置图标
-  - **license_view.py**：为重新激活对话框窗口（`reactivate_license` 方法）设置图标
-  - **license_validator.py**：为授权验证临时窗口设置图标
 
 - **图标设置方案**：
   - 采用统一的图标设置代码模式

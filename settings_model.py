@@ -20,6 +20,7 @@ class SettingsModel:
         # 加载或初始化
         self._load_settings()
         self._load_barcode_mappings()
+        self._ensure_defaults()
 
     # -------- 通用设置管理 --------
     def _load_settings(self):
@@ -36,6 +37,11 @@ class SettingsModel:
                 'inbound': ['入库快递单号', '货商姓名', '商品名称', '商品数量', '入库时间', '颜色/配置'],
                 'outbound': ['选中', '单号', '商品名称', '商品数量', '剩余数量', '剩余价值', '颜色/配置', '货商姓名', '入库时间'],
                 'data_query': ['单号', '货商姓名', '入库时间', '商品名称', '商品数量', '买价', '佣金', '结算价', '出库状态']
+            },
+            'field_defaults': {
+                'inbound_commission': 0,
+                'inbound_quantity': 1,
+                'inbound_price': 0
             }
         }
             self._save_settings()
@@ -43,6 +49,15 @@ class SettingsModel:
     def _save_settings(self):
         with open(self.settings_file, 'w', encoding='utf-8') as f:
             json.dump(self.settings, f, ensure_ascii=False, indent=2)
+
+    def _ensure_defaults(self):
+        """确保字段默认值设置存在"""
+        if 'field_defaults' not in self.settings:
+            self.settings['field_defaults'] = {
+                'inbound_commission': 0,
+                'inbound_quantity': 1
+            }
+            self._save_settings()
 
     # --- 供应商 ---
     def get_suppliers(self):
@@ -194,3 +209,40 @@ class SettingsModel:
             self.settings['column_display'] = {}
         self.settings['column_display'][page_type] = columns
         self._save_settings()
+
+    # -------- 字段默认值管理 --------
+    def get_field_default(self, field_name: str, default_value=None):
+        """获取字段默认值"""
+        field_defaults = self.settings.get('field_defaults', {})
+        return field_defaults.get(field_name, default_value)
+
+    def set_field_default(self, field_name: str, value):
+        """设置字段默认值"""
+        if 'field_defaults' not in self.settings:
+            self.settings['field_defaults'] = {}
+        self.settings['field_defaults'][field_name] = value
+        self._save_settings()
+
+    def get_inbound_commission_default(self):
+        """获取入库登记页的佣金默认值"""
+        return self.get_field_default('inbound_commission', 0)
+
+    def get_inbound_quantity_default(self):
+        """获取入库登记页的数量默认值"""
+        return self.get_field_default('inbound_quantity', 1)
+
+    def set_inbound_commission_default(self, value):
+        """设置入库登记页的佣金默认值"""
+        self.set_field_default('inbound_commission', value)
+
+    def set_inbound_quantity_default(self, value):
+        """设置入库登记页的数量默认值"""
+        self.set_field_default('inbound_quantity', value)
+
+    def get_inbound_price_default(self):
+        """获取入库登记页的买价默认值"""
+        return self.get_field_default('inbound_price', 0)
+
+    def set_inbound_price_default(self, value):
+        """设置入库登记页的买价默认值"""
+        self.set_field_default('inbound_price', value)

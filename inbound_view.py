@@ -2,6 +2,7 @@ import os
 import tkinter as tk
 from tkinter import ttk, messagebox
 from datetime import datetime
+from bulk_inbound_dialog import BulkInboundDialog
 try:
     from tkcalendar import DateEntry
 except ImportError:
@@ -87,35 +88,44 @@ class InboundView(ttk.Frame):
         self.ent_name.grid(row=5, column=1, padx=5, pady=3)
         self.ent_name.bind("<KeyRelease>", lambda e: self.update_preview())
 
+        # 颜色/配置
+        ttk.Label(frm, text="颜色/配置:").grid(row=6, column=0, sticky="e", padx=5, pady=3)
+        self.ent_color = ttk.Entry(frm, width=30)
+        self.ent_color.grid(row=6, column=1, padx=5, pady=3)
+        self.ent_color.bind("<KeyRelease>", lambda e: self.update_preview())
+
         # 买价
-        ttk.Label(frm, text="买价:").grid(row=6, column=0, sticky="e", padx=5, pady=3)
+        ttk.Label(frm, text="买价:").grid(row=7, column=0, sticky="e", padx=5, pady=3)
         self.ent_buy = ttk.Entry(frm, width=30)
-        self.ent_buy.grid(row=6, column=1, padx=5, pady=3)
+        self.ent_buy.grid(row=7, column=1, padx=5, pady=3)
+        # 插入买价默认值
+        price_default = self.controller.settings_model.get_inbound_price_default()
+        self.ent_buy.insert(0, str(price_default))
         self.ent_buy.bind("<KeyRelease>", lambda e: self.update_preview())
 
         # 佣金
-        ttk.Label(frm, text="佣金:").grid(row=7, column=0, sticky="e", padx=5, pady=3)
+        ttk.Label(frm, text="佣金:").grid(row=8, column=0, sticky="e", padx=5, pady=3)
         self.ent_comm = ttk.Entry(frm, width=30)
-        self.ent_comm.grid(row=7, column=1, padx=5, pady=3)
+        self.ent_comm.grid(row=8, column=1, padx=5, pady=3)
+        # 插入佣金默认值
+        comm_default = self.controller.settings_model.get_inbound_commission_default()
+        self.ent_comm.insert(0, str(comm_default))
         self.ent_comm.bind("<KeyRelease>", lambda e: self.update_preview())
 
         # 商品数量
-        ttk.Label(frm, text="商品数量:").grid(row=8, column=0, sticky="e", padx=5, pady=3)
+        ttk.Label(frm, text="商品数量:").grid(row=9, column=0, sticky="e", padx=5, pady=3)
         self.ent_qty = ttk.Entry(frm, width=30)
-        self.ent_qty.grid(row=8, column=1, padx=5, pady=3)
+        self.ent_qty.grid(row=9, column=1, padx=5, pady=3)
+        # 插入数量默认值
+        qty_default = self.controller.settings_model.get_inbound_quantity_default()
+        self.ent_qty.insert(0, str(qty_default))
         self.ent_qty.bind("<KeyRelease>", lambda e: self.update_preview())
 
         # 数量单位
-        ttk.Label(frm, text="数量单位:").grid(row=9, column=0, sticky="e", padx=5, pady=3)
+        ttk.Label(frm, text="数量单位:").grid(row=10, column=0, sticky="e", padx=5, pady=3)
         self.ent_unit = ttk.Entry(frm, width=30)
-        self.ent_unit.grid(row=9, column=1, padx=5, pady=3)
+        self.ent_unit.grid(row=10, column=1, padx=5, pady=3)
         self.ent_unit.bind("<KeyRelease>", lambda e: self.update_preview())
-
-        # 颜色/配置
-        ttk.Label(frm, text="颜色/配置:").grid(row=10, column=0, sticky="e", padx=5, pady=3)
-        self.ent_color = ttk.Entry(frm, width=30)
-        self.ent_color.grid(row=10, column=1, padx=5, pady=3)
-        self.ent_color.bind("<KeyRelease>", lambda e: self.update_preview())
 
         # 入库日期 + 时分秒
         ttk.Label(frm, text="入库日期:").grid(row=11, column=0, sticky="e", padx=5, pady=3)
@@ -140,14 +150,39 @@ class InboundView(ttk.Frame):
             cb.bind("<<ComboboxSelected>>", lambda e: self.update_preview())
         ttk.Button(frm, text="现在时间", command=self.set_now).grid(row=11, column=2, padx=5, pady=3)
 
-        # 提交按钮
-        ttk.Button(frm, text="提交入库", command=self.submit).grid(row=12, column=0, columnspan=3, pady=10)
+        # 批量添加按钮和提交按钮
+        btn_frame = ttk.Frame(frm)
+        btn_frame.grid(row=12, column=0, columnspan=3, pady=10)
+        ttk.Button(btn_frame, text="提交入库", command=self.submit).pack(side=tk.LEFT, padx=5)
+        ttk.Button(btn_frame, text="批量添加", command=self.open_bulk_inbound).pack(side=tk.LEFT, padx=5)
 
         # 预览区
         pv = ttk.LabelFrame(right, text="入库信息预览", padding=10)
-        pv.pack(fill=tk.X, padx=5, pady=5)
-        self.lbl_preview = ttk.Label(pv, text="", justify="left")
-        self.lbl_preview.pack(fill=tk.X)
+        pv.pack(fill=tk.BOTH, expand=True, padx=5, pady=5)
+        
+        # 创建可滚动的预览框架
+        preview_frame = ttk.Frame(pv)
+        preview_frame.pack(fill=tk.BOTH, expand=True)
+        
+        # 创建Canvas用于显示预览内容
+        preview_canvas = tk.Canvas(preview_frame, highlightthickness=0, bg="white", height=200)
+        preview_scrollbar = ttk.Scrollbar(preview_frame, orient="vertical", command=preview_canvas.yview)
+        preview_scrollable = ttk.Frame(preview_canvas, relief="flat")
+        
+        preview_scrollable.bind(
+            "<Configure>",
+            lambda e: preview_canvas.configure(scrollregion=preview_canvas.bbox("all"))
+        )
+        
+        preview_canvas.create_window((0, 0), window=preview_scrollable, anchor="nw")
+        preview_canvas.configure(yscrollcommand=preview_scrollbar.set)
+        
+        preview_canvas.pack(side=tk.LEFT, fill=tk.BOTH, expand=True)
+        preview_scrollbar.pack(side=tk.RIGHT, fill=tk.Y)
+        
+        # 在可滚动框架内创建标签
+        self.lbl_preview = ttk.Label(preview_scrollable, text="", justify="left", wraplength=300)
+        self.lbl_preview.pack(fill=tk.BOTH, expand=True, padx=5, pady=5)
 
     def _on_barcode_focus_out(self, event=None):
         code = self.ent_bar.get().strip()
@@ -195,8 +230,38 @@ class InboundView(ttk.Frame):
             "结算价": settle_str,
             "结算状态": "否"
         }
-        txt = "\n".join(f"{k}: {v}" for k, v in info.items())
+        
+        # 使用改进的文本格式：每个条目为一行，字段名不胖字、值自动换行
+        lines = []
+        for k, v in info.items():
+            # 控制最大字段宽度，避免一行内容过長
+            if v and len(v) > 40:
+                # 对于过長的值，换行显示
+                lines.append(f"{k}:")
+                lines.append(f"  {v}")
+            else:
+                lines.append(f"{k}: {v}")
+        
+        txt = "\n".join(lines)
         self.lbl_preview.config(text=txt)
+
+    def clear_form_defaults(self):
+        """清空表单但保持默认值"""
+        self.ent_in_courier.delete(0, tk.END)
+        self.ent_bar.delete(0, tk.END)
+        self.ent_name.delete(0, tk.END)
+        # 恢复买价、佣金和数量的默认值
+        price_default = self.controller.settings_model.get_inbound_price_default()
+        comm_default = self.controller.settings_model.get_inbound_commission_default()
+        qty_default = self.controller.settings_model.get_inbound_quantity_default()
+        self.ent_buy.delete(0, tk.END)
+        self.ent_buy.insert(0, str(price_default))
+        self.ent_comm.delete(0, tk.END)
+        self.ent_comm.insert(0, str(comm_default))
+        self.ent_qty.delete(0, tk.END)
+        self.ent_qty.insert(0, str(qty_default))
+        self.ent_unit.delete(0, tk.END)
+        self.ent_color.delete(0, tk.END)
 
     def submit(self):
         data = {
@@ -215,11 +280,7 @@ class InboundView(ttk.Frame):
         success = self.controller.handle_inbound_registration(data)
         if success:
             messagebox.showinfo("提示", "入库登记成功！")
-            for w in [
-                self.ent_in_courier, self.ent_bar, self.ent_name, self.ent_buy,
-                self.ent_comm, self.ent_qty, self.ent_unit, self.ent_color
-            ]:
-                w.delete(0, tk.END)
+            self.clear_form_defaults()
             self.update_preview()
             self.refresh_list()
         else:
@@ -297,3 +358,11 @@ class InboundView(ttk.Frame):
         
         # 刷新数据
         self.refresh_list()
+    
+    def open_bulk_inbound(self):
+        """打开批量入库对话框"""
+        dialog = BulkInboundDialog(self.winfo_toplevel(), self.controller)
+        # 等待对话框关闭后刷新列表
+        self.wait_window(dialog)
+        self.refresh_list()
+        self.update_preview()
