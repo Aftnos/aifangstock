@@ -72,6 +72,7 @@ class DataView(ttk.Frame):
 
         # 指标显示区
         self.lbl_sold_profit      = ttk.Label(self, text="卖出总利润: 0.00")
+        self.lbl_settled_profit   = ttk.Label(self, text="已出库已结算总利润: 0.00")
         self.lbl_inventory_value  = ttk.Label(self, text="库存价值: 0.00")
         self.lbl_shipping_cost    = ttk.Label(self, text="快递总费用: 0.00")
         self.lbl_commission_cost  = ttk.Label(self, text="佣金总费用: 0.00")
@@ -81,13 +82,14 @@ class DataView(ttk.Frame):
         self.lbl_total_qty        = ttk.Label(self, text="商品数量总和: 0.00")
 
         self.lbl_sold_profit     .grid(row=5, column=0, columnspan=5, sticky="w", pady=(10,0))
-        self.lbl_inventory_value.grid(row=6, column=0, columnspan=5, sticky="w")
-        self.lbl_shipping_cost  .grid(row=7, column=0, columnspan=5, sticky="w")
-        self.lbl_commission_cost.grid(row=8, column=0, columnspan=5, sticky="w")
-        self.lbl_unsettled_amount.grid(row=9, column=0, columnspan=5, sticky="w")
-        self.lbl_total_market   .grid(row=10, column=0, columnspan=5, sticky="w")
-        self.lbl_total_rows     .grid(row=11, column=0, columnspan=5, sticky="w")
-        self.lbl_total_qty      .grid(row=12, column=0, columnspan=5, sticky="w")
+        self.lbl_settled_profit  .grid(row=6, column=0, columnspan=5, sticky="w")
+        self.lbl_inventory_value.grid(row=7, column=0, columnspan=5, sticky="w")
+        self.lbl_shipping_cost  .grid(row=8, column=0, columnspan=5, sticky="w")
+        self.lbl_commission_cost.grid(row=9, column=0, columnspan=5, sticky="w")
+        self.lbl_unsettled_amount.grid(row=10, column=0, columnspan=5, sticky="w")
+        self.lbl_total_market   .grid(row=11, column=0, columnspan=5, sticky="w")
+        self.lbl_total_rows     .grid(row=12, column=0, columnspan=5, sticky="w")
+        self.lbl_total_qty      .grid(row=13, column=0, columnspan=5, sticky="w")
 
         # 布局权重
         self.grid_rowconfigure(1, weight=1)
@@ -101,7 +103,8 @@ class DataView(ttk.Frame):
             return
         for i, c in enumerate(self.columns):
             ttk.Label(self.filter_inner, text=c).grid(row=0, column=i, padx=2, pady=2)
-            e = ttk.Entry(self.filter_inner, width=10)
+            w = 20 if c == "出库记录" else 10
+            e = ttk.Entry(self.filter_inner, width=w)
             e.grid(row=1, column=i, padx=2, pady=2)
             e.bind("<Return>", lambda ev: self.apply_filters())
             self.filter_entries[c] = e
@@ -334,7 +337,7 @@ class DataView(ttk.Frame):
         return datetime(1900, 1, 1)
         
     def update_metrics(self):
-        sold_profit = inventory_value = shipping_cost = commission_cost = unsettled_amount = 0.0
+        sold_profit = settled_profit = inventory_value = shipping_cost = commission_cost = unsettled_amount = 0.0
         total_market = total_qty = 0.0
         for d in self.full:
             try: commission_cost += float(d.get('佣金','0') or 0)
@@ -346,6 +349,11 @@ class DataView(ttk.Frame):
                     ship = float(d.get('快递价格','0') or 0)
                     sold_profit   += (sale - cost - ship)
                     shipping_cost += ship
+                    
+                    # 计算已出库且已设置结算价的总利润
+                    # 检查结算价是否已设置（不为空且大于0）
+                    if cost > 0:
+                        settled_profit += (sale - cost - ship)
                 except: pass
             else:
                 try: inventory_value += float(d.get('结算价','0') or 0)
@@ -359,6 +367,7 @@ class DataView(ttk.Frame):
             except: pass
 
         self.lbl_sold_profit     .config(text=f"卖出总利润: {sold_profit:.2f}")
+        self.lbl_settled_profit  .config(text=f"已出库已结算总利润: {settled_profit:.2f}")
         self.lbl_inventory_value .config(text=f"库存价值: {inventory_value:.2f}")
         self.lbl_shipping_cost   .config(text=f"快递总费用: {shipping_cost:.2f}")
         self.lbl_commission_cost .config(text=f"佣金总费用: {commission_cost:.2f}")

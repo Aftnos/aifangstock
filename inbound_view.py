@@ -121,23 +121,17 @@ class InboundView(ttk.Frame):
         self.ent_qty.insert(0, str(qty_default))
         self.ent_qty.bind("<KeyRelease>", lambda e: self.update_preview())
 
-        # 数量单位
-        ttk.Label(frm, text="数量单位:").grid(row=10, column=0, sticky="e", padx=5, pady=3)
-        self.ent_unit = ttk.Entry(frm, width=30)
-        self.ent_unit.grid(row=10, column=1, padx=5, pady=3)
-        self.ent_unit.bind("<KeyRelease>", lambda e: self.update_preview())
-
         # 入库日期 + 时分秒
-        ttk.Label(frm, text="入库日期:").grid(row=11, column=0, sticky="e", padx=5, pady=3)
+        ttk.Label(frm, text="入库日期:").grid(row=10, column=0, sticky="e", padx=5, pady=3)
         if DateEntry is ttk.Entry:
             self.date_ent = ttk.Entry(frm, width=12)
         else:
             self.date_ent = DateEntry(frm, date_pattern='yyyy-MM-dd', width=12)
-        self.date_ent.grid(row=11, column=1, sticky="w", padx=(5,0), pady=3)
+        self.date_ent.grid(row=10, column=1, sticky="w", padx=(5,0), pady=3)
         self.date_ent.bind("<<DateEntrySelected>>", lambda e: self.update_preview())
         self.date_ent.bind("<KeyRelease>", lambda e: self.update_preview())
         tf = ttk.Frame(frm)
-        tf.grid(row=11, column=1, sticky="e", padx=(0,5))
+        tf.grid(row=10, column=1, sticky="e", padx=(0,5))
         self.cb_hour = ttk.Combobox(tf, values=[f"{i:02d}" for i in range(24)], width=3, state="readonly")
         self.cb_hour.current(0); self.cb_hour.pack(side=tk.LEFT)
         ttk.Label(tf, text=":").pack(side=tk.LEFT)
@@ -148,11 +142,11 @@ class InboundView(ttk.Frame):
         self.cb_sec.current(0); self.cb_sec.pack(side=tk.LEFT)
         for cb in (self.cb_hour, self.cb_min, self.cb_sec):
             cb.bind("<<ComboboxSelected>>", lambda e: self.update_preview())
-        ttk.Button(frm, text="现在时间", command=self.set_now).grid(row=11, column=2, padx=5, pady=3)
+        ttk.Button(frm, text="现在时间", command=self.set_now).grid(row=10, column=2, padx=5, pady=3)
 
         # 批量添加按钮和提交按钮
         btn_frame = ttk.Frame(frm)
-        btn_frame.grid(row=12, column=0, columnspan=3, pady=10)
+        btn_frame.grid(row=11, column=0, columnspan=3, pady=10)
         ttk.Button(btn_frame, text="提交入库", command=self.submit).pack(side=tk.LEFT, padx=5)
         ttk.Button(btn_frame, text="批量添加", command=self.open_bulk_inbound).pack(side=tk.LEFT, padx=5)
 
@@ -212,7 +206,7 @@ class InboundView(ttk.Frame):
     def update_preview(self):
         try:
             buy = float(self.ent_buy.get())
-            comm = float(self.ent_comm.get())
+            comm = float(self.ent_comm.get() or "0")
             settle_str = f"{buy + comm:.2f}"
         except:
             settle_str = ""
@@ -224,7 +218,6 @@ class InboundView(ttk.Frame):
             "买价": self.ent_buy.get(),
             "佣金": self.ent_comm.get(),
             "数量": self.ent_qty.get(),
-            "单位": self.ent_unit.get(),
             "颜色/配置": self.ent_color.get(),
             "入库时间": self.get_datetime_str(),
             "结算价": settle_str,
@@ -260,7 +253,7 @@ class InboundView(ttk.Frame):
         self.ent_comm.insert(0, str(comm_default))
         self.ent_qty.delete(0, tk.END)
         self.ent_qty.insert(0, str(qty_default))
-        self.ent_unit.delete(0, tk.END)
+        # 结算日期可为空，清空即可
         self.ent_color.delete(0, tk.END)
 
     def submit(self):
@@ -273,7 +266,6 @@ class InboundView(ttk.Frame):
             '佣金': self.ent_comm.get(),
             '结算状态': '否',
             '商品数量': self.ent_qty.get(),
-            '商品数量单位': self.ent_unit.get(),
             '入库快递单号': self.ent_in_courier.get(),
             '颜色/配置': self.ent_color.get()
         }
@@ -361,7 +353,8 @@ class InboundView(ttk.Frame):
     
     def open_bulk_inbound(self):
         """打开批量入库对话框"""
-        dialog = BulkInboundDialog(self.winfo_toplevel(), self.controller)
+        init_courier = self.ent_in_courier.get().strip()
+        dialog = BulkInboundDialog(self.winfo_toplevel(), self.controller, initial_courier=init_courier)
         # 等待对话框关闭后刷新列表
         self.wait_window(dialog)
         self.refresh_list()

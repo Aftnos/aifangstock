@@ -54,7 +54,7 @@ def test_preview_with_long_content():
             "buy_price": "10.00",
             "commission": "2.00",
             "quantity": "5",
-            "unit": "件",
+            "settle_date": "2024-11-21",
             "color": "红色"
         },
         {
@@ -66,7 +66,7 @@ def test_preview_with_long_content():
             "buy_price": "15.50",
             "commission": "3.50",
             "quantity": "10",
-            "unit": "套",
+            "settle_date": "2024-11-21",
             "color": "深蓝色带白色条纹，尺寸L码，材质100%棉，手洗建议，不可漂白"
         },
         {
@@ -78,7 +78,7 @@ def test_preview_with_long_content():
             "buy_price": "20.00",
             "commission": "4.00",
             "quantity": "1",
-            "unit": "盒（每盒包含12个单位，每个单位重量100克，总重约1.2公斤）",
+            "settle_date": "2024-11-21",
             "color": "绿色"
         }
     ]
@@ -102,13 +102,16 @@ def test_preview_with_long_content():
         inbound_view.ent_comm.insert(0, test_case["commission"])
         inbound_view.ent_qty.delete(0, tk.END)
         inbound_view.ent_qty.insert(0, test_case["quantity"])
-        inbound_view.ent_unit.delete(0, tk.END)
-        inbound_view.ent_unit.insert(0, test_case["unit"])
+        try:
+            inbound_view.ent_settle_date.delete(0, tk.END)
+            inbound_view.ent_settle_date.insert(0, test_case["settle_date"])
+        except Exception:
+            pass
         inbound_view.ent_color.delete(0, tk.END)
         inbound_view.ent_color.insert(0, test_case["color"])
         inbound_view.update_preview()
         print(f"\n✓ 已填充: {test_case['name']}")
-        print(f"  - 数量单位: {test_case['unit']}")
+        print(f"  - 结算日期: {test_case['settle_date']}")
         print(f"  - 颜色/配置: {test_case['color']}")
     
     # 添加测试按钮
@@ -131,7 +134,7 @@ def test_preview_with_long_content():
     print("\n测试场景：")
     print("- 测试1：所有字段内容较短，验证基础布局")
     print("- 测试2：颜色/配置字段内容较长，验证长内容换行")
-    print("- 测试3：数量单位字段超长，验证超长内容处理")
+    print("- 测试3：结算日期字段验证")
     print("\n" + "=" * 60)
     
     root.mainloop()

@@ -5,12 +5,13 @@ from datetime import datetime
 class BulkInboundDialog(tk.Toplevel):
     """批量入库对话框窗口"""
     
-    def __init__(self, parent, controller):
+    def __init__(self, parent, controller, initial_courier: str = ""):
         super().__init__(parent)
         self.title("批量入库")
-        self.geometry("1000x650")
+        self.geometry("1300x700")
         self.controller = controller
         self.resizable(True, True)
+        self.initial_courier = initial_courier
         
         # 确保主窗口可见
         self.transient(parent)
@@ -32,6 +33,8 @@ class BulkInboundDialog(tk.Toplevel):
         
         ttk.Label(top_frame, text="入库快递单号:", font=("Arial", 10, "bold")).grid(row=0, column=0, sticky="e", padx=5)
         self.ent_courier = ttk.Entry(top_frame, width=40, font=("Arial", 11))
+        if self.initial_courier:
+            self.ent_courier.insert(0, self.initial_courier)
         self.ent_courier.grid(row=0, column=1, padx=5, sticky="ew")
         top_frame.columnconfigure(1, weight=1)
         
@@ -78,8 +81,8 @@ class BulkInboundDialog(tk.Toplevel):
         container_frame.pack(fill=tk.BOTH, expand=True)
         
         # 表格列定义
-        self.columns = ("序号", "条形码", "商品名称", "买价", "佣金", "数量", "单位", "颜色/配置")
-        column_widths = {"序号": 40, "条形码": 90, "商品名称": 110, "买价": 70, "佣金": 70, "数量": 50, "单位": 50, "颜色/配置": 110}
+        self.columns = ("序号", "条形码", "商品名称", "买价", "佣金", "数量", "颜色/配置")
+        column_widths = {"序号": 40, "条形码": 90, "商品名称": 110, "买价": 70, "佣金": 70, "数量": 60, "颜色/配置": 110}
         
         # 表头框架
         header_frame = ttk.Frame(container_frame)
@@ -177,7 +180,7 @@ class BulkInboundDialog(tk.Toplevel):
         
         for col_idx, col_name in enumerate(columns_without_seq):
             width = {"条形码": 90, "商品名称": 110, "买价": 70, 
-                    "佣金": 70, "数量": 50, "单位": 50, "颜色/配置": 110}.get(col_name, 100)
+                    "佣金": 70, "数量": 60, "颜色/配置": 110}.get(col_name, 100)
             
             # 创建条形码Entry框
             entry_frame = tk.Frame(row_frame, bg="white")
@@ -192,6 +195,15 @@ class BulkInboundDialog(tk.Toplevel):
                 bg="white"
             )
             entry.pack(fill=tk.BOTH, expand=True, padx=2, pady=1)
+            try:
+                if col_name == "买价":
+                    entry.insert(0, str(self.controller.settings_model.get_inbound_price_default()))
+                elif col_name == "佣金":
+                    entry.insert(0, str(self.controller.settings_model.get_inbound_commission_default()))
+                elif col_name == "数量":
+                    entry.insert(0, str(self.controller.settings_model.get_inbound_quantity_default()))
+            except Exception:
+                pass
             
             # 绑定事件处理（改変时更新背景颜色）
             def make_change_handler(frame):
@@ -203,6 +215,22 @@ class BulkInboundDialog(tk.Toplevel):
                 return on_change
             
             entry.bind("<KeyRelease>", make_change_handler(entry_frame))
+
+            if col_name == "条形码":
+                def on_barcode_change(event=None, item=item_id, frame=entry_frame, entry_ref=entry):
+                    code = entry_ref.get().strip()
+                    if not code:
+                        return
+                    prod = self.controller.settings_model.get_product_name(code)
+                    if prod:
+                        name_entry = self.row_entries[item].get("商品名称")
+                        if name_entry is not None:
+                            name_entry.delete(0, tk.END)
+                            name_entry.insert(0, prod)
+                            frame.config(bg="#FFFACD")
+                entry.bind("<FocusOut>", on_barcode_change)
+                entry.bind("<KeyRelease>", on_barcode_change)
+
             
             # 存储输入框引用
             self.row_entries[item_id][col_name] = entry
@@ -292,7 +320,7 @@ class BulkInboundDialog(tk.Toplevel):
             buy_price = entries.get("买价", tk.Entry()).get().strip() if "买价" in entries else ""
             commission = entries.get("佣金", tk.Entry()).get().strip() if "佣金" in entries else ""
             quantity = entries.get("数量", tk.Entry()).get().strip() if "数量" in entries else ""
-            unit = entries.get("单位", tk.Entry()).get().strip() if "单位" in entries else ""
+            
             color = entries.get("颜色/配置", tk.Entry()).get().strip() if "颜色/配置" in entries else ""
             
             # 跳过空行
@@ -310,10 +338,7 @@ class BulkInboundDialog(tk.Toplevel):
                 error_count += 1
                 continue
             
-            if not commission:
-                error_messages.append(f"商品'{product_name}'的佣金不能为空")
-                error_count += 1
-                continue
+            # 佣金允许为空，按0处理
             
             if not quantity:
                 error_messages.append(f"商品'{product_name}'的数量不能为空")
@@ -323,7 +348,7 @@ class BulkInboundDialog(tk.Toplevel):
             # 验证数值字段
             try:
                 buy_price_f = float(buy_price)
-                commission_f = float(commission)
+                commission_f = float(commission or "0")
                 quantity_i = int(quantity)
             except ValueError as e:
                 error_messages.append(f"商品'{product_name}'的数值格式错误: {e}")
@@ -340,7 +365,6 @@ class BulkInboundDialog(tk.Toplevel):
                 '佣金': str(commission_f),
                 '结算状态': '否',
                 '商品数量': str(quantity_i),
-                '商品数量单位': unit,
                 '入库快递单号': courier_no,
                 '颜色/配置': color
             }

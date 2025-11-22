@@ -35,13 +35,14 @@ class SettingsModel:
             'active_table': 'default',
             'column_display': {
                 'inbound': ['入库快递单号', '货商姓名', '商品名称', '商品数量', '入库时间', '颜色/配置'],
-                'outbound': ['选中', '单号', '商品名称', '商品数量', '剩余数量', '剩余价值', '颜色/配置', '货商姓名', '入库时间'],
+                'outbound': ['选中', '出库数量', '单号', '商品名称', '商品数量', '剩余数量', '剩余价值', '颜色/配置', '货商姓名', '入库时间'],
                 'data_query': ['单号', '货商姓名', '入库时间', '商品名称', '商品数量', '买价', '佣金', '结算价', '出库状态']
             },
             'field_defaults': {
                 'inbound_commission': 0,
                 'inbound_quantity': 1,
-                'inbound_price': 0
+                'inbound_price': 0,
+                'outbound_quantity_mode': 'one'  # 'one' 或 'all'
             }
         }
             self._save_settings()
@@ -55,8 +56,13 @@ class SettingsModel:
         if 'field_defaults' not in self.settings:
             self.settings['field_defaults'] = {
                 'inbound_commission': 0,
-                'inbound_quantity': 1
+                'inbound_quantity': 1,
+                'outbound_quantity_mode': 'one'
             }
+            self._save_settings()
+        # 确保出库数量模式配置存在
+        if 'outbound_quantity_mode' not in self.settings.get('field_defaults', {}):
+            self.settings['field_defaults']['outbound_quantity_mode'] = 'one'
             self._save_settings()
 
     # --- 供应商 ---
@@ -194,9 +200,9 @@ class SettingsModel:
         if page_type == 'inbound':
             return ['入库快递单号', '货商姓名', '商品名称', '商品数量', '入库时间', '颜色/配置', '买价', '佣金', '结算价', '数字条码']
         elif page_type == 'outbound':
-            return ['选中', '单号', '商品名称', '商品数量', '剩余数量', '剩余价值', '颜色/配置', '货商姓名', '入库时间', '买价', '佣金', '结算价']
+            return ['选中', '出库数量', '单号', '商品名称', '商品数量', '剩余数量', '剩余价值', '颜色/配置', '货商姓名', '入库时间', '买价', '佣金', '结算价']
         elif page_type == 'data_query':
-            return ['单号', '货商姓名', '入库时间', '数字条码', '商品名称', '商品数量', '商品数量单位', '入库快递单号', '货源', '颜色/配置', '买价', '佣金', '结算价', '单价', '剩余数量', '剩余价值', '行情价格', '结算状态', '出库状态', '出库档口', '快递单号', '快递价格', '利润', '备注', '出库记录']
+            return ['单号', '货商姓名', '入库时间', '数字条码', '商品名称', '商品数量', '结算日期', '入库快递单号', '货源', '颜色/配置', '买价', '佣金', '结算价', '单价', '剩余数量', '剩余价值', '行情价格', '结算状态', '出库状态', '出库档口', '快递单号', '快递价格', '利润', '备注', '出库记录']
         return []
 
     def get_display_columns(self, page_type: str) -> list:
@@ -246,3 +252,12 @@ class SettingsModel:
     def set_inbound_price_default(self, value):
         """设置入库登记页的买价默认值"""
         self.set_field_default('inbound_price', value)
+
+    def get_outbound_quantity_mode(self):
+        """获取出库数量默认值模式：'one'（一件）或 'all'（全部库存）"""
+        return self.get_field_default('outbound_quantity_mode', 'one')
+
+    def set_outbound_quantity_mode(self, mode):
+        """设置出库数量默认值模式：'one'（一件）或 'all'（全部库存）"""
+        if mode in ['one', 'all']:
+            self.set_field_default('outbound_quantity_mode', mode)

@@ -427,7 +427,7 @@ class SettingsView(ttk.Frame):
         if page_type == 'inbound':
             default_columns = ['入库快递单号', '货商姓名', '商品名称', '商品数量', '入库时间', '颜色/配置']
         elif page_type == 'outbound':
-            default_columns = ['选中', '单号', '商品名称', '商品数量', '剩余数量', '剩余价值', '颜色/配置', '货商姓名', '入库时间']
+            default_columns = ['选中', '出库数量', '单号', '商品名称', '商品数量', '剩余数量', '剩余价值', '颜色/配置', '货商姓名', '入库时间']
         else:  # data_query
             default_columns = ['单号', '货商姓名', '入库时间', '商品名称', '商品数量', '买价', '佣金', '结算价', '出库状态']
         
@@ -468,20 +468,31 @@ class SettingsView(ttk.Frame):
         quantity_default = self.settings_model.get_inbound_quantity_default()
         self.ent_quantity_default.insert(0, str(quantity_default))
         
+        # 出库数量默认值模式
+        ttk.Label(page, text="出库数量默认值:").grid(row=3, column=0, sticky="e", padx=10, pady=10)
+        self.cb_outbound_mode = ttk.Combobox(page, values=["一件", "当前库存全部数量"], state="readonly", width=17)
+        self.cb_outbound_mode.grid(row=3, column=1, sticky="w", padx=10, pady=10)
+        # 设置当前值
+        outbound_mode = self.settings_model.get_outbound_quantity_mode()
+        self.cb_outbound_mode.current(0 if outbound_mode == 'one' else 1)
+        
         # 描述
-        ttk.Label(page, text="说明:").grid(row=3, column=0, columnspan=2, sticky="w", padx=10, pady=5)
+        ttk.Label(page, text="说明:").grid(row=4, column=0, columnspan=2, sticky="w", padx=10, pady=5)
         desc_text = (
             "• 买价默认值：每次打开入库登记页面或提交一个订单后\n"
             "买价字段初始值（支持小数序）\n"
             "• 佣金默认值：每次打开入库登记页面或提交一个订单后\n"
             "佣金字段初始值（支持小数序）\n"
             "• 数量默认值：每次打开入库登记页面或提交一个订单后\n"
-            "数量字段初始值（必须为整数）"
+            "数量字段初始值（必须为整数）\n"
+            "• 出库数量默认值：批量出库时，每个选中商品的默认出库数量\n"
+            "  - 一件：默认出库1件\n"
+            "  - 当前库存全部数量：默认出库该商品的剩余库存数量"
         )
-        ttk.Label(page, text=desc_text, justify="left").grid(row=4, column=0, columnspan=2, sticky="w", padx=10, pady=5)
+        ttk.Label(page, text=desc_text, justify="left").grid(row=5, column=0, columnspan=2, sticky="w", padx=10, pady=5)
         
         # 保存按钮
-        ttk.Button(page, text="保存", command=self._save_field_defaults).grid(row=5, column=0, columnspan=2, pady=20)
+        ttk.Button(page, text="保存", command=self._save_field_defaults).grid(row=6, column=0, columnspan=2, pady=20)
         
         return page
     
@@ -513,6 +524,10 @@ class SettingsView(ttk.Frame):
             self.settings_model.set_inbound_price_default(price_val)
             self.settings_model.set_inbound_commission_default(comm_val)
             self.settings_model.set_inbound_quantity_default(qty_val)
+            
+            # 保存出库数量默认值模式
+            outbound_mode = 'one' if self.cb_outbound_mode.get() == "一件" else 'all'
+            self.settings_model.set_outbound_quantity_mode(outbound_mode)
             
             messagebox.showinfo("成功", "字段默认值已保存！\n下次打开入库登记页面时将使用新的默认值")
         except Exception as e:

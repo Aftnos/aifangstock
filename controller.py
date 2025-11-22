@@ -32,7 +32,7 @@ class InventoryController:
             '数字条码': info.get('数字条码', ''),
             '商品名称': info.get('商品名称', ''),
             '商品数量': str(quantity),
-            '商品数量单位': info.get('商品数量单位', ''),
+            '结算日期': info.get('结算日期', ''),
             '入库快递单号': info.get('入库快递单号', ''),
             '货源': '',
             '颜色/配置': info.get('颜色/配置', ''),
@@ -127,7 +127,9 @@ class InventoryController:
         if success:
             self.refresh_inventory_list()
             return True, "修改成功"
-        return False, "数据库更新失败"
+        detail = self.model.last_error if hasattr(self.model, 'last_error') else ""
+        msg = f"数据库更新失败: {detail}" if detail else "数据库更新失败"
+        return False, msg
 
     def handle_delete(self, order: str) -> bool:
         success = self.model.delete_record(order)
@@ -178,7 +180,7 @@ class InventoryController:
         recs = self.model.get_all_records()
         cols = (
             "入库快递单号","货商姓名","入库时间","数字条码","商品名称",
-            "商品数量","商品数量单位","货源","颜色/配置",
+            "商品数量","结算日期","货源","颜色/配置",
             "买价","佣金","结算价","单价","剩余数量","剩余价值","行情价格","利润",
             "结算状态","出库状态","出库档口","快递单号","快递价格","备注","单号","出库记录"
         )
@@ -217,7 +219,7 @@ class InventoryController:
         recs = [r for r in self.model.get_all_records() if r.get('快递单号','') == t]
         cols = (
             "入库快递单号","货商姓名","入库时间","数字条码","商品名称",
-            "商品数量","商品数量单位","货源","颜色/配置",
+            "商品数量","结算日期","货源","颜色/配置",
             "买价","佣金","结算价","单价","剩余数量","剩余价值","行情价格","利润",
             "结算状态","出库状态","出库档口","快递单号","快递价格","备注","单号","出库记录"
         )

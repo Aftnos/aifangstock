@@ -13,6 +13,7 @@ class OutboundView(ttk.Frame):
         super().__init__(parent, padding=10)
         self.controller = controller
         self.checked = set()
+        self.outbound_quantities = {}  # 存储每个item的出库数量
         self.create_widgets()
 
     def create_widgets(self):
@@ -34,11 +35,20 @@ class OutboundView(ttk.Frame):
         tree_container = ttk.Frame(self)
         tree_container.pack(fill=tk.BOTH, expand=True, padx=10, pady=5)
 
-        # 从设置中获取要显示的列
+       # 从设置中获取要显示的列
         display_cols = self.controller.settings_model.get_display_columns('outbound')
         if not display_cols:
             # 如果没有配置，使用默认列
             display_cols = ["选中", "单号", "商品名称", "商品数量", "剩余数量", "剩余价值", "颜色/配置", "货商姓名", "入库时间"]
+        
+        # 确保"出库数量"列存在
+        if "出库数量" not in display_cols:
+            # 在"选中"列之后插入"出库数量"列
+            if "选中" in display_cols:
+                idx = display_cols.index("选中") + 1
+                display_cols.insert(idx, "出库数量")
+            else:
+                display_cols.insert(0, "出库数量")
         
         self.tree = ttk.Treeview(
             tree_container,
@@ -51,6 +61,8 @@ class OutboundView(ttk.Frame):
             self.tree.column(c, width=100, anchor="center")
         if "选中" in display_cols:
             self.tree.column("选中", width=50)
+        if "出库数量" in display_cols:
+            self.tree.column("出库数量", width=80)
         self.tree.tag_configure("selected", background="lightblue")
         self.tree.pack(side=tk.LEFT, fill=tk.BOTH, expand=True)
 
@@ -62,6 +74,7 @@ class OutboundView(ttk.Frame):
         self.tree.configure(xscrollcommand=hsb.set)
 
         self.tree.bind("<Button-1>", self.on_click)
+        self.tree.bind("<Double-Button-1>", self.on_double_click)  # 双击编辑出库数量
 
         # 按钮和选中计数
         btn_frame = ttk.Frame(self)
@@ -106,8 +119,73 @@ class OutboundView(ttk.Frame):
 
         ttk.Button(self, text="提交出库", command=self.submit).pack(pady=10)
 
-    def _update_selected_count(self):
-        self.lbl_selected_count.config(text=f"已选中 {len(self.checked)} 条")
+    def _get_default_outbound_quantity(self, item):
+        """获取商品的默认出库数量"""
+        mode = self.controller.settings_model.get_outbound_quantity_mode()
+        if mode == 'one':
+            return 1
+        else:  # mode == 'all'
+            # 返回剩余数量
+            remaining_qty_str = self.tree.set(item, "剩余数量")
+            try:
+                return int(remaining_qty_str)
+            except (ValueError, TypeError):
+                return 1
+
+    def on_double_click(self, event):
+        """双击编辑出库数量"""
+        if self.tree.identify("region", event.x, event.y) != "cell":
+            return
+        
+        item = self.tree.identify_row(event.y)
+        if not item or item not in self.checked:
+            return
+        
+        # 获取当前显示的列
+        display_cols = self.controller.settings_model.get_display_columns('outbound')
+        if not display_cols:
+            display_cols = ["选中", "单号", "商品名称", "商品数量", "剩余数量", "剩余价值", "颜色/配置", "货商姓名", "入库时间"]
+        
+        # 确保"出库数量"列存在
+        if "出库数量" not in display_cols:
+            if "选中" in display_cols:
+                idx = display_cols.index("选中") + 1
+                display_cols.insert(idx, "出库数量")
+            else:
+                display_cols.insert(0, "出库数量")
+        
+        # 检查是否点击了"出库数量"列
+        if "出库数量" in display_cols:
+            qty_col_index = display_cols.index("出库数量") + 1
+            if self.tree.identify_column(event.x) != f"#{qty_col_index}":
+                return
+        else:
+            return
+        
+        # 获取当前出库数量
+        current_qty = self.outbound_quantities.get(item, 1)
+        
+        # 获取剩余数量作为最大值
+        remaining_qty_str = self.tree.set(item, "剩余数量")
+        try:
+            max_qty = int(remaining_qty_str)
+        except (ValueError, TypeError):
+            max_qty = 999999
+        
+        # 弹出输入框
+        from tkinter import simpledialog
+        new_qty = simpledialog.askinteger(
+            "修改出库数量",
+            f"请输入出库数量（1-{max_qty}）：",
+            initialvalue=current_qty,
+            minvalue=1,
+            maxvalue=max_qty,
+            parent=self
+        )
+        
+        if new_qty is not None:
+            self.outbound_quantities[item] = new_qty
+            self.tree.set(item, "出库数量", str(new_qty))
 
     def on_click(self, event):
         if self.tree.identify("region", event.x, event.y) != "cell":
@@ -117,6 +195,14 @@ class OutboundView(ttk.Frame):
         display_cols = self.controller.settings_model.get_display_columns('outbound')
         if not display_cols:
             display_cols = ["选中", "单号", "商品名称", "商品数量", "剩余数量", "剩余价值", "颜色/配置", "货商姓名", "入库时间"]
+        
+        # 确保"出库数量"列存在
+        if "出库数量" not in display_cols:
+            if "选中" in display_cols:
+                idx = display_cols.index("选中") + 1
+                display_cols.insert(idx, "出库数量")
+            else:
+                display_cols.insert(0, "出库数量")
         
         # 检查是否点击了"选中"列
         if "选中" in display_cols:
@@ -134,18 +220,32 @@ class OutboundView(ttk.Frame):
         if item in self.checked:
             self.checked.remove(item)
             self.tree.set(item, "选中", "☐")
+            self.tree.set(item, "出库数量", "")  # 清空出库数量
+            if item in self.outbound_quantities:
+                del self.outbound_quantities[item]
             self.tree.item(item, tags=())
         else:
             self.checked.add(item)
             self.tree.set(item, "选中", "☑")
+            # 设置默认出库数量
+            default_qty = self._get_default_outbound_quantity(item)
+            self.tree.set(item, "出库数量", str(default_qty))
+            self.outbound_quantities[item] = default_qty
             self.tree.item(item, tags=("selected",))
         self._update_selected_count()
+
+    def _update_selected_count(self):
+        self.lbl_selected_count.config(text=f"已选中 {len(self.checked)} 条")
 
     def select_all(self):
         for it in self.tree.get_children():
             if it not in self.checked:
                 self.checked.add(it)
                 self.tree.set(it, "选中", "☑")
+                # 设置默认出库数量
+                default_qty = self._get_default_outbound_quantity(it)
+                self.tree.set(it, "出库数量", str(default_qty))
+                self.outbound_quantities[it] = default_qty
                 self.tree.item(it, tags=("selected",))
         self._update_selected_count()
 
@@ -153,6 +253,9 @@ class OutboundView(ttk.Frame):
         for it in list(self.checked):
             self.checked.remove(it)
             self.tree.set(it, "选中", "☐")
+            self.tree.set(it, "出库数量", "")  # 清空出库数量
+            if it in self.outbound_quantities:
+                del self.outbound_quantities[it]
             self.tree.item(it, tags=())
         self._update_selected_count()
 
@@ -161,13 +264,15 @@ class OutboundView(ttk.Frame):
             messagebox.showwarning("提示", "请先勾选至少一条记录！")
             return
 
-        # 1) 先一次性读取所有被勾选项的单号
-        orders = [
-            self.tree.set(it, "单号")
-            for it in self.checked
-            if self.tree.exists(it)
-        ]
-        if not orders:
+        # 1) 先一次性读取所有被勾选项的单号和出库数量
+        order_quantities = []
+        for it in self.checked:
+            if self.tree.exists(it):
+                order = self.tree.set(it, "单号")
+                qty = self.outbound_quantities.get(it, 1)  # 使用每行单独设置的数量
+                order_quantities.append((order, qty))
+        
+        if not order_quantities:
             messagebox.showwarning("提示", "没有有效记录可出库！")
             return
 
@@ -184,32 +289,56 @@ class OutboundView(ttk.Frame):
 
         # 2) 处理出库
         cnt = 0
-        for order in orders:
-            if outbound_quantity_str:  # 分数量出库
-                try:
-                    outbound_quantity = int(outbound_quantity_str)
-                    if outbound_quantity <= 0:
-                        messagebox.showwarning("提示", "出库数量必须大于0！")
-                        return
-                    if self.controller.handle_partial_outbound(order, outbound_quantity, tracking_number, counter):
+        # 如果底部输入框有值，使用统一数量（兼容旧逻辑）
+        if outbound_quantity_str:
+            try:
+                unified_qty = int(outbound_quantity_str)
+                if unified_qty <= 0:
+                    messagebox.showwarning("提示", "出库数量必须大于0！")
+                    return
+                for order, _ in order_quantities:
+                    if self.controller.handle_partial_outbound(order, unified_qty, tracking_number, counter):
                         cnt += 1
                     else:
                         messagebox.showwarning("提示", f"单号 {order} 出库失败，可能是数量不足或数据错误！")
                         return
-                except ValueError:
-                    messagebox.showwarning("提示", "出库数量必须是有效的整数！")
-                    return
-            else:  # 全部出库（原有逻辑）
-                updated = {
-                    '出库状态': '全部出库',
-                    '出库档口': counter,
-                    '快递单号': tracking_number,
-                    '剩余数量': '0',
-                    '剩余价值': '0.00',
-                    '利润': ''
-                }
-                if self.controller.model.update_record(order, updated):
-                    cnt += 1
+            except ValueError:
+                messagebox.showwarning("提示", "出库数量必须是有效的整数！")
+                return
+        else:
+            # 使用每行单独设置的数量
+            for order, qty in order_quantities:
+                # 获取剩余数量
+                remaining_qty = None
+                for it in self.checked:
+                    if self.tree.exists(it) and self.tree.set(it, "单号") == order:
+                        remaining_qty_str = self.tree.set(it, "剩余数量")
+                        try:
+                            remaining_qty = int(remaining_qty_str)
+                        except (ValueError, TypeError):
+                            pass
+                        break
+                
+                # 判断是全部出库还是分数量出库
+                if remaining_qty and qty >= remaining_qty:
+                    # 全部出库
+                    updated = {
+                        '出库状态': '全部出库',
+                        '出库档口': counter,
+                        '快递单号': tracking_number,
+                        '剩余数量': '0',
+                        '剩余价值': '0.00',
+                        '利润': ''
+                    }
+                    if self.controller.model.update_record(order, updated):
+                        cnt += 1
+                else:
+                    # 分数量出库
+                    if self.controller.handle_partial_outbound(order, qty, tracking_number, counter):
+                        cnt += 1
+                    else:
+                        messagebox.showwarning("提示", f"单号 {order} 出库失败，可能是数量不足或数据错误！")
+                        return
 
         messagebox.showinfo("提示", f"共处理出库 {cnt} 条记录")
 
@@ -220,6 +349,7 @@ class OutboundView(ttk.Frame):
             elif isinstance(w, ttk.Combobox):
                 w.set('')
         self.checked.clear()
+        self.outbound_quantities.clear()  # 清空出库数量记录
         self._update_selected_count()
 
         # 4) 最后统一刷新所有页面
@@ -237,6 +367,7 @@ class OutboundView(ttk.Frame):
 
         self.tree.delete(*self.tree.get_children())
         self.checked.clear()
+        self.outbound_quantities.clear()  # 清空出库数量记录
         
         # 保存原始数据用于搜索
         self.all_records = []
@@ -245,6 +376,14 @@ class OutboundView(ttk.Frame):
         display_cols = self.controller.settings_model.get_display_columns('outbound')
         if not display_cols:
             display_cols = ["选中", "单号", "商品名称", "商品数量", "剩余数量", "剩余价值", "颜色/配置", "货商姓名", "入库时间"]
+        
+        # 确保"出库数量"列存在
+        if "出库数量" not in display_cols:
+            if "选中" in display_cols:
+                idx = display_cols.index("选中") + 1
+                display_cols.insert(idx, "出库数量")
+            else:
+                display_cols.insert(0, "出库数量")
         
         for r in recs:
             # 只显示有剩余数量的记录
@@ -265,6 +404,8 @@ class OutboundView(ttk.Frame):
             for col in display_cols:
                 if col == "选中":
                     vals.append("☐")
+                elif col == "出库数量":
+                    vals.append("")  # 默认为空，选中后才显示
                 elif col == "剩余数量":
                     vals.append(remaining_qty_str)
                 elif col == "剩余价值":
@@ -282,6 +423,14 @@ class OutboundView(ttk.Frame):
         if not display_cols:
             display_cols = ["选中", "单号", "商品名称", "商品数量", "剩余数量", "剩余价值", "颜色/配置", "货商姓名", "入库时间"]
         
+        # 确保"出库数量"列存在
+        if "出库数量" not in display_cols:
+            if "选中" in display_cols:
+                idx = display_cols.index("选中") + 1
+                display_cols.insert(idx, "出库数量")
+            else:
+                display_cols.insert(0, "出库数量")
+        
         # 重新配置表格列
         self.tree.configure(columns=display_cols)
         for c in display_cols:
@@ -289,6 +438,8 @@ class OutboundView(ttk.Frame):
             self.tree.column(c, width=100, anchor="center")
         if "选中" in display_cols:
             self.tree.column("选中", width=50)
+        if "出库数量" in display_cols:
+            self.tree.column("出库数量", width=80)
         
         # 刷新数据
         records = self.controller.model.get_all_records()
@@ -316,11 +467,21 @@ class OutboundView(ttk.Frame):
                 if not display_cols:
                     display_cols = ["选中", "单号", "商品名称", "商品数量", "剩余数量", "剩余价值", "颜色/配置", "货商姓名", "入库时间"]
                 
+                # 确保"出库数量"列存在
+                if "出库数量" not in display_cols:
+                    if "选中" in display_cols:
+                        idx = display_cols.index("选中") + 1
+                        display_cols.insert(idx, "出库数量")
+                    else:
+                        display_cols.insert(0, "出库数量")
+                
                 # 根据配置的列构建显示数据
                 vals = []
                 for col in display_cols:
                     if col == "选中":
                         vals.append("☐")
+                    elif col == "出库数量":
+                        vals.append("")  # 默认为空
                     elif col == "剩余数量":
                         vals.append(r.get('剩余数量', '') or r.get('商品数量', ''))
                     elif col == "剩余价值":
@@ -362,11 +523,21 @@ class OutboundView(ttk.Frame):
                 if not display_cols:
                     display_cols = ["选中", "单号", "商品名称", "商品数量", "剩余数量", "剩余价值", "颜色/配置", "货商姓名", "入库时间"]
                 
+                # 确保"出库数量"列存在
+                if "出库数量" not in display_cols:
+                    if "选中" in display_cols:
+                        idx = display_cols.index("选中") + 1
+                        display_cols.insert(idx, "出库数量")
+                    else:
+                        display_cols.insert(0, "出库数量")
+                
                 # 根据配置的列构建显示数据
                 vals = []
                 for col in display_cols:
                     if col == "选中":
                         vals.append("☐")
+                    elif col == "出库数量":
+                        vals.append("")  # 默认为空
                     elif col == "剩余数量":
                         vals.append(r.get('剩余数量', '') or r.get('商品数量', ''))
                     elif col == "剩余价值":

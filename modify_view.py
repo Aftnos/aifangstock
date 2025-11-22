@@ -13,10 +13,11 @@ class ModifyView(ttk.Frame):
         self.selected_order = None
         self.orig = []   # 原始数据列表（dict）
         self.full = []   # 当前显示的数据列表（dict）
+        self.batch_mode = False
         # 列定义
         self.columns = [
             "入库快递单号","货商姓名","入库时间","数字条码","商品名称",
-            "商品数量","商品数量单位","颜色/配置","货源","买价",
+            "商品数量","结算日期","颜色/配置","货源","买价",
             "佣金","结算价","单价","剩余数量","剩余价值","行情价格","利润","结算状态",
             "出库状态","出库档口","快递单号","快递价格","备注","单号","出库记录"
         ]
@@ -27,6 +28,27 @@ class ModifyView(ttk.Frame):
         self.refresh_list()
 
     def create_widgets(self):
+        tool_fr = ttk.Frame(self)
+        tool_fr.pack(fill=tk.X)
+        self.btn_start_batch = ttk.Button(tool_fr, text="批量修改", command=self.start_batch_modify)
+        self.btn_start_batch.pack(side=tk.LEFT, padx=5, pady=5)
+        self.btn_cancel_batch = ttk.Button(tool_fr, text="取消批量", command=self.cancel_batch_modify)
+        self.btn_cancel_batch.pack(side=tk.LEFT, padx=5, pady=5)
+        self.btn_cancel_batch.state(["disabled"])
+        self.batch_controls = ttk.Frame(self)
+        self.batch_controls.pack(fill=tk.X)
+        self.batch_controls.pack_forget()
+        self.cb_batch_column = ttk.Combobox(self.batch_controls, values=[], state="readonly", width=20)
+        self.cb_batch_column.pack(side=tk.LEFT, padx=5, pady=5)
+        self.cb_batch_column.bind("<<ComboboxSelected>>", lambda e: self.update_batch_preview())
+        self.ent_batch_value = ttk.Entry(self.batch_controls, width=30)
+        self.ent_batch_value.pack(side=tk.LEFT, padx=5, pady=5)
+        self.ent_batch_value.bind("<KeyRelease>", lambda e: self.update_batch_preview())
+        self.btn_exec_batch = ttk.Button(self.batch_controls, text="确认修改", command=self.exec_batch_modify)
+        self.btn_exec_batch.pack(side=tk.LEFT, padx=5, pady=5)
+        self.lbl_batch_preview = ttk.Label(self.batch_controls, text="")
+        self.lbl_batch_preview.pack(side=tk.LEFT, padx=10)
+
         # —— 表格区 ——
         tree_fr = ttk.Frame(self)
         tree_fr.pack(fill=tk.BOTH, expand=True)
@@ -59,7 +81,8 @@ class ModifyView(ttk.Frame):
         self.filter_entries = {}
         for i, c in enumerate(self.columns):
             ttk.Label(self.filter_inner, text=c).grid(row=0, column=i, padx=2, pady=2)
-            e = ttk.Entry(self.filter_inner, width=10)
+            w = 20 if c == "出库记录" else 10
+            e = ttk.Entry(self.filter_inner, width=w)
             e.grid(row=1, column=i, padx=2, pady=2)
             e.bind("<Return>", lambda ev: self.apply_filters())
             self.filter_entries[c] = e
@@ -140,6 +163,63 @@ class ModifyView(ttk.Frame):
         op_fr.pack(pady=10)
         ttk.Button(op_fr, text="保存修改", command=self.save_changes).pack(side=tk.LEFT, padx=5)
         ttk.Button(op_fr, text="删除记录", command=self.delete_record).pack(side=tk.LEFT, padx=5)
+
+    def start_batch_modify(self):
+        self.batch_mode = True
+        cols = [c for c in self.columns if c not in ("单号","利润")]
+        self.cb_batch_column["values"] = cols
+        if cols:
+            self.cb_batch_column.current(0)
+        self.btn_start_batch.state(["disabled"])
+        self.btn_cancel_batch.state(["!disabled"])
+        self.batch_controls.pack(fill=tk.X)
+        self.update_batch_preview()
+
+    def cancel_batch_modify(self):
+        self.batch_mode = False
+        self.btn_start_batch.state(["!disabled"])
+        self.btn_cancel_batch.state(["disabled"])
+        self.batch_controls.pack_forget()
+
+    def update_batch_preview(self):
+        col = self.cb_batch_column.get()
+        val = self.ent_batch_value.get().strip()
+        sample = []
+        for i, d in enumerate(self.full[:3]):
+            order = d.get("单号","")
+            before = str(d.get(col, ""))
+            sample.append(f"{order}: {before} -> {val}")
+        txt = "; ".join(sample) if sample else ""
+        self.lbl_batch_preview.configure(text=txt)
+
+    def exec_batch_modify(self):
+        col = self.cb_batch_column.get()
+        val = self.ent_batch_value.get().strip()
+        if not col:
+            messagebox.showwarning("提示", "请选择要修改的列")
+            return
+        self.update_batch_preview()
+        total = len(self.full)
+        if not messagebox.askyesno("确认", f"将修改 {total} 条记录的 '{col}' 为 '{val}'，是否继续？"):
+            return
+        success = 0
+        failed = 0
+        errors = []
+        for d in self.full:
+            order = d.get("单号", "")
+            ok, msg = self.controller.handle_modify(order, {col: val})
+            if ok:
+                success += 1
+            else:
+                failed += 1
+                errors.append(msg)
+        self.refresh_list()
+        self.cancel_batch_modify()
+        if failed == 0:
+            messagebox.showinfo("成功", f"批量修改完成：成功 {success} 条")
+        else:
+            detail = "\n".join(errors[:3])
+            messagebox.showwarning("部分成功", f"成功 {success} 条，失败 {failed} 条\n{detail}")
 
     def set_now(self, date_ent, cb_h, cb_m, cb_s):
         now = datetime.now()

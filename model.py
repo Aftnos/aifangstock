@@ -2,6 +2,7 @@ import os
 import sys
 import csv
 import tempfile
+import traceback
 
 class InventoryModel:
     # CSV 文件的表头
@@ -12,7 +13,7 @@ class InventoryModel:
         '数字条码',
         '商品名称',
         '商品数量',
-        '商品数量单位',
+        '结算日期',
         '入库快递单号',
         '货源',
         '颜色/配置',
@@ -44,6 +45,25 @@ class InventoryModel:
         os.makedirs(self.data_dir, exist_ok=True)
         # 设置当前表
         self.set_table(table_name)
+        self.last_error = ""
+
+    def _record_error(self, context: str, e: Exception, extra: dict | None = None):
+        try:
+            msg = f"{context}: {type(e).__name__}: {e}"
+            if extra:
+                try:
+                    details = "; ".join(f"{k}={v}" for k, v in extra.items())
+                    msg = f"{msg}; {details}"
+                except:
+                    pass
+            self.last_error = msg
+            log_path = os.path.join(self.data_dir, "diagnostic.log")
+            with open(log_path, "a", encoding="utf-8") as lf:
+                lf.write(f"[diagnostic] file={self.filename} | {msg}\n")
+                lf.write(traceback.format_exc())
+                lf.write("\n")
+        except:
+            self.last_error = f"{context}: {type(e).__name__}: {e}"
 
     def set_table(self, table_name: str):
         """
@@ -72,7 +92,7 @@ class InventoryModel:
                 writer.writerow(record)
             return True
         except Exception as e:
-            print(f"添加记录时发生错误: {e}")
+            self._record_error("添加记录时发生错误", e)
             return False
 
     def update_record(self, order_number: str, updated_fields: dict) -> bool:
@@ -90,6 +110,13 @@ class InventoryModel:
             if not found:
                 return False
 
+            try:
+                for k, v in updated_fields.items():
+                    _ = str(v).encode("gb2312")
+            except Exception as enc_err:
+                self._record_error("更新记录时发生编码错误", enc_err, {"field": k, "value": v})
+                return False
+
             temp_file = tempfile.NamedTemporaryFile(
                 "w", newline="", encoding="gb2312", delete=False, dir=self.data_dir
             )
@@ -98,16 +125,23 @@ class InventoryModel:
                 writer.writeheader()
                 writer.writerows(records)
                 temp_file.close()
-                os.replace(temp_file.name, self.filename)
+                try:
+                    os.replace(temp_file.name, self.filename)
+                except PermissionError as pe:
+                    self._record_error("替换CSV文件时权限错误", pe, {"temp": temp_file.name, "target": self.filename})
+                    return False
             finally:
                 if not temp_file.closed:
                     temp_file.close()
                 if os.path.exists(temp_file.name) and temp_file.name != self.filename:
-                    os.remove(temp_file.name)
+                    try:
+                        os.remove(temp_file.name)
+                    except Exception as rm_err:
+                        self._record_error("清理临时文件失败", rm_err, {"temp": temp_file.name})
 
             return True
         except Exception as e:
-            print(f"更新记录时发生错误: {e}")
+            self._record_error("更新记录时发生错误", e, {"target": self.filename})
             return False
 
     def delete_record(self, order_number: str) -> bool:
@@ -128,16 +162,23 @@ class InventoryModel:
                 writer.writeheader()
                 writer.writerows(new_records)
                 temp_file.close()
-                os.replace(temp_file.name, self.filename)
+                try:
+                    os.replace(temp_file.name, self.filename)
+                except PermissionError as pe:
+                    self._record_error("替换CSV文件时权限错误", pe, {"temp": temp_file.name, "target": self.filename})
+                    return False
             finally:
                 if not temp_file.closed:
                     temp_file.close()
                 if os.path.exists(temp_file.name) and temp_file.name != self.filename:
-                    os.remove(temp_file.name)
+                    try:
+                        os.remove(temp_file.name)
+                    except Exception as rm_err:
+                        self._record_error("清理临时文件失败", rm_err, {"temp": temp_file.name})
 
             return True
         except Exception as e:
-            print(f"删除记录时发生错误: {e}")
+            self._record_error("删除记录时发生错误", e, {"target": self.filename})
             return False
 
     def rename_table(self, old_name: str, new_name: str) -> bool:
@@ -161,14 +202,21 @@ class InventoryModel:
             with open(self.filename, 'r', newline='', encoding="gb2312") as f:
                 reader = csv.DictReader(f)
                 for row in reader:
+                    if '结算日期' not in row:
+                        dt = row.get('入库时间', '')
+                        val = ''
+                        if dt:
+                            try:
+                                val = dt.split(' ')[0]
+                            except Exception:
+                                val = ''
+                        row['结算日期'] = val
                     records.append(row)
         except FileNotFoundError:
-            # 文件不存在时初始化一个空的 CSV
             self.initialize_csv()
             return []
         except Exception as e:
-            # 其他异常直接打印出来，避免静默失败
-            print(f"读取记录时发生错误: {e}")
+            self._record_error("读取记录时发生错误", e, {"target": self.filename})
             return []
         return records
     
@@ -247,11 +295,18 @@ class InventoryModel:
             writer.writeheader()
             writer.writerows(records)
             temp_file.close()
-            os.replace(temp_file.name, self.filename)
+            try:
+                os.replace(temp_file.name, self.filename)
+            except PermissionError as pe:
+                self._record_error("替换CSV文件时权限错误", pe, {"temp": temp_file.name, "target": self.filename})
+                return False
         finally:
             if not temp_file.closed:
                 temp_file.close()
             if os.path.exists(temp_file.name) and temp_file.name != self.filename:
-                os.remove(temp_file.name)
+                try:
+                    os.remove(temp_file.name)
+                except Exception as rm_err:
+                    self._record_error("清理临时文件失败", rm_err, {"temp": temp_file.name})
 
         return True
